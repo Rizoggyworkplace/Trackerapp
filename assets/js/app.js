@@ -1678,6 +1678,14 @@ $("cloudSyncNow").onclick=async()=>{
   await cloudReconcile();
 };
 $("cloudSignOut").onclick=()=>cloudSignOut();
+$("accountChangePassword").onclick=async()=>{
+  const p1=$("accountNewPassword").value,p2=$("accountConfirmPassword").value,msg=$("accountPasswordMessage");
+  if(p1.length<10){msg.textContent="Password minimal 10 karakter.";return;}
+  if(p1!==p2){msg.textContent="Password tidak sama.";return;}
+  msg.textContent="Menyimpan...";
+  try{await setNewPassword(p1);$("accountNewPassword").value="";$("accountConfirmPassword").value="";msg.textContent="Password berhasil diperbarui.";toast("Password berhasil diperbarui");}
+  catch(_){msg.textContent="Gagal mengganti password.";}
+};
 $("useLocalForCloud").onclick=async()=>{
   if(typeof opsCanEdit==='function'&&!opsCanEdit())return toast('Akun ini hanya dapat menggunakan data cloud.');
   const button=$('useLocalForCloud');button.disabled=true;
