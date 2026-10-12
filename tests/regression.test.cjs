@@ -124,7 +124,7 @@ test('PERKUATAN screenshot case types 3333333333 and retains billions after save
 test('service worker never substitutes old cached JS for a new version and precaches exact asset URLs',async()=>{
  const vm=require('node:vm'),listeners={},cached=new Map(),network=[];let installed=[];
  const scope='https://example.test/trackers/';cached.set(scope+'assets/js/app.js','OLD');
- const cache={addAll:async requests=>{installed=requests;},match:async(req,opts)=>{assert.ok(!opts?.ignoreSearch);return cached.get(req.url||new URL(req,scope).href);},put:async(req,res)=>cached.set(req.url,res)};
+ const cache={add:async req=>{installed.push(req);},addAll:async requests=>{installed=requests;},match:async(req,opts)=>{assert.ok(!opts?.ignoreSearch);return cached.get(req.url||new URL(req,scope).href);},put:async(req,res)=>cached.set(req.url,res)};
  const context={URL,Request,Response,self:{registration:{scope},location:{origin:'https://example.test'},addEventListener:(name,fn)=>listeners[name]=fn},caches:{open:async()=>cache},fetch:async(req,opts)=>{network.push([req.url,opts]);return new Response('NEW');}};
  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../sw.js'),'utf8'),context);
  let promise;listeners.install({waitUntil:p=>promise=p});await promise;
