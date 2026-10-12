@@ -98,7 +98,12 @@ async function cloudPush(reason='manual'){
     if(!await ensureCurrentUserAccess()||cloudIdentity()!==userId)throw new Error('Akses atau workspace berubah. Login ulang sebelum melanjutkan.');
     if(typeof opsCanEdit==='function'&&!opsCanEdit())throw new Error('Akun sekarang hanya baca.');
     const snap=cloudSnapshot();
-    const {data,error}=await authTimeout(cloudClient.rpc('trackers_save_state',{new_snapshot:snap,expected_updated_at:cloudBase}),15000);
+    // The save_state RPC validates and diffs the plain v60 snapshot shape
+    // ({trackly:{sites:[...]},pkbon}). Normalize the compressed v61 envelope
+    // before upload; local storage stays compressed.
+    const plain=TrackersCore.normalizeSnapshot(snap);
+    const payload={version:60,trackly:plain.trackly,pkbon:plain.pkbon,saved_at:snap.saved_at};
+    const {data,error}=await authTimeout(cloudClient.rpc('trackers_save_state',{new_snapshot:payload,expected_updated_at:cloudBase}),15000);
     if(error)throw error;
     if(cloudIdentity()!==userId)return false;
     if(!data?.ok){cloudConflictDialog();return false;}
