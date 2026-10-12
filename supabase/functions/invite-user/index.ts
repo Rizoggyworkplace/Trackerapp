@@ -33,15 +33,20 @@ serve(async (req: Request): Promise<Response> => {
     const jwt = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
     if (!jwt) return json({ ok: false, error: "Unauthorized." }, 401);
 
-    // Verify the caller through their own JWT (RLS applies).
-    const callerClient = createClient(url, anonKey, {
-      global: { headers: { Authorization: `Bearer ${jwt}` } },
-      auth: { persistSession: false },
+    // Verify the caller through their own JWT with a direct auth API call
+    // (mirrors a plain curl to /auth/v1/user; avoids gotrue client quirks).
+    const apiKey = req.headers.get("apikey") || anonKey;
+    const userRes = await fetch(`${url}/auth/v1/user`, {
+      headers: { apikey: apiKey, Authorization: `Bearer ${jwt}` },
     });
-    const { data: { user: callerUser }, error: callerErr } = await callerClient.auth.getUser();
-    if (callerErr || !callerUser) return json({ ok: false, error: "Sesi tidak valid. Login ulang." }, 401);
+    if (!userRes.ok) return json({ ok: false, error: "Sesi tidak valid. Login ulang." }, 401);
+    const callerUser = await userRes.json();
+    if (!callerUser?.id) return json({ ok: false, error: "Sesi tidak valid. Login ulang." }, 401);
 
-    const { data: callerProfile } = await callerClient
+    const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
+
+    // Caller profile via service_role (JWT already verified above).
+    const { data: callerProfile } = await admin
       .from("profiles")
       .select("user_id, role, access_enabled, workspace_owner_id")
       .eq("user_id", callerUser.id)
@@ -56,7 +61,6 @@ serve(async (req: Request): Promise<Response> => {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ ok: false, error: "Email tidak valid." }, 400);
     if (!ALLOWED_ROLES.includes(role)) return json({ ok: false, error: "Role tidak valid." }, 400);
 
-    const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
     const ownerId: string = callerProfile.workspace_owner_id || callerProfile.user_id;
 
     // Account already exists? (service_role bypasses RLS)
