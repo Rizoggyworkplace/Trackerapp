@@ -1013,6 +1013,14 @@
 <span>Status Data</span><strong id="cloudSyncStatus">Memuat...</strong>
 <small id="cloudSyncTime">Menyiapkan sinkronisasi...</small>
 </div>
+<div class="cloud-sync-card" id="cloudPasswordCard">
+<span>Ganti Password</span>
+<small class="muted">Buat password untuk login berikutnya. Wajib diisi kalau kamu masuk lewat link undangan.</small>
+<label class="field"><span>Password baru (min. 10 karakter)</span><input id="accountNewPassword" type="password" autocomplete="new-password"/></label>
+<label class="field"><span>Konfirmasi password</span><input id="accountConfirmPassword" type="password" autocomplete="new-password"/></label>
+<button class="btn dark small" id="accountChangePassword" type="button">Simpan password</button>
+<p id="accountPasswordMessage" role="status"></p>
+</div>
 </div>
 <div class="formactions" style="justify-content:space-between">
 <button class="btn light" id="cloudSyncNow" type="button">Sinkronkan</button>
