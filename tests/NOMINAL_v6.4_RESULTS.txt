@@ -1,0 +1,21 @@
+✔ rupiah parser handles grouped, decimal and invalid/negative amounts (4.8837ms)
+✔ fractional volumes contribute to the correct total (0.206461ms)
+✔ site edits retain archive/tasks/finance and prevent duplicate identities (1796.623338ms)
+✔ finance preserves old SOW rows and does not lose focus on typing an addwork name (1607.33887ms)
+✔ payment history totals and project cashflow remain consistent (1119.987465ms)
+✔ PKBON create/save, stable site link, fractional volume, duplicate and status change (2434.946848ms)
+✔ PKBON price accepts consecutive typing through trillions without resetting at thousands (1710.123833ms)
+✔ PKBON price keeps the caret next to the edited digit when regrouping (1176.472805ms)
+✔ all finance price fields including addwork accept large amounts and persist after reload (4233.943811ms)
+✔ payment input accepts large typed and pasted amounts and updates totals then saves (2258.140675ms)
+✔ shared live rupiah input preserves mid-string caret and decimal saved-data parsing (1.232475ms)
+✔ PERKUATAN screenshot case types 3333333333 and retains billions after save (3272.464723ms)
+✔ service worker never substitutes old cached JS for a new version and precaches exact asset URLs (8.767758ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 19741.452305

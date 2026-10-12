@@ -1,0 +1,18 @@
+✔ BAST does not mark an empty BOQ complete (1.982995ms)
+✔ BAST undo clears the selected stage and all later stages (1.206454ms)
+✔ manual BAST can be completed then rolled back in the UI handler (3399.594956ms)
+✔ BAST process completion validates content and refreshes detail without reopening (3546.197771ms)
+✔ notes create/edit/pin/archive/restore/delete persists across module navigation (2490.265441ms)
+✔ PKBON price accepts consecutive typing through trillions without resetting at thousands (3009.789036ms)
+✔ PKBON price keeps the caret next to the edited digit when regrouping (2010.495969ms)
+✔ task date supports add, edit, cancel, reload and clearing without changing progress (5828.215586ms)
+✔ payment input accepts large typed and pasted amounts and updates totals then saves (3874.959796ms)
+✔ service worker never substitutes old cached JS for a new version and precaches exact asset URLs (13.180779ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 24337.718829
