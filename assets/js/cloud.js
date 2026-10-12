@@ -284,6 +284,18 @@ async function cloudInit(){
   });
   const {data,error}=await authTimeout(cloudClient.auth.getSession(),15000);
   if(error){setLoginInline('Sesi login tidak terbaca. Muat ulang dan coba lagi.','error');return;}
+  // Explicit recovery handling: don't rely solely on the PASSWORD_RECOVERY
+  // event (it can be missed), and explain clearly when the link is unusable.
+  const hashParams=new URLSearchParams(location.hash.replace(/^#/,''));const queryParams=new URLSearchParams(location.search);
+  const hasRecoveryParams=hashParams.get('type')==='recovery'||queryParams.get('type')==='recovery';
+  const hasAuthParams=!!(hashParams.get('access_token')||hashParams.get('error_description')||queryParams.get('code')||queryParams.get('error'));
+  const cleanAuthUrl=()=>{try{history.replaceState(null,'',location.pathname+location.search);}catch(_){}};
+  if(hasRecoveryParams&&data.session&&!recoveryMode){
+    recoveryMode=true;cloudSession=data.session;cleanAuthUrl();openModal('resetPasswordModal');return;
+  }
+  if(!data.session&&hasAuthParams){
+    cleanAuthUrl();setLoginInline('Link reset tidak valid atau sudah dipakai/kedaluwarsa. Minta link baru lewat Lupa password?','error');return;
+  }
   if(!recoveryMode)await cloudHandleSession(data.session);
 
 }
