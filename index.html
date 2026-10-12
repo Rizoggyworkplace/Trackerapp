@@ -739,14 +739,14 @@
 <!-- User Access Modal -->
 <div class="modalbg" id="userAccessModal"><div class="modal">
 <div class="modalhead">
-<div><p class="eyebrow">ADMIN</p><h2>Akses User</h2><small class="muted">Kelola role akun yang sudah dibuat di Supabase.</small></div>
+<div><p class="eyebrow">ADMIN</p><h2>Akses User</h2><small class="muted">Undang anggota baru atau kelola role mereka.</small></div>
 <button class="close" data-close="userAccessModal"><span class="mi mi-close" aria-hidden="true"></span></button>
 </div>
 <div class="admin-user-note">
 <strong>Private access</strong>
-<small>Pendaftaran publik dimatikan. Untuk membuat akun baru, Admin membuat user dari Supabase Authentication → Users.</small>
+<small>Pendaftaran publik dimatikan. Undang anggota lewat form di bawah — mereka akan dapat email berisi link undangan; klik link itu untuk masuk dan buat password sendiri.</small>
 </div>
-<form id="teamJoinForm"><p>Akun baru dibuat dahulu oleh Admin di Supabase. Tambahkan email akun tersebut untuk berbagi data workspace ini. Data pribadi akun tetap tersimpan terpisah.</p><label class="field"><span>Email anggota</span><input id="teamEmail" type="email" required/></label><label class="field"><span>Hak akses</span><select id="teamRole"><option value="project_manager">Staf — edit data kerja</option><option value="viewer">Viewer — hanya baca dan ekspor</option><option value="admin">Admin — edit dan kelola anggota</option></select></label><button class="btn dark small" type="submit">Tambahkan ke workspace</button><p id="teamMessage" role="status"></p></form><div class="admin-user-list" id="adminUserList"></div>
+<form id="teamJoinForm"><p>Masukkan email anggota. Kalau belum punya akun, mereka akan dapat <strong>email undangan berisi link</strong> — klik link itu untuk masuk, lalu buat password sendiri di pengaturan akun. Kalau akunnya sudah ada, email ini langsung ditambahkan ke workspace.</p><label class="field"><span>Email anggota</span><input id="teamEmail" type="email" required/></label><label class="field"><span>Hak akses</span><select id="teamRole"><option value="project_manager">Staf — edit data kerja</option><option value="viewer">Viewer — hanya baca dan ekspor</option><option value="admin">Admin — edit dan kelola anggota</option></select></label><button class="btn dark small" type="submit">Kirim undangan</button><p id="teamMessage" role="status"></p></form><div class="admin-user-list" id="adminUserList"></div>
 <div class="formactions">
 <button class="btn light" id="refreshAdminUsers" type="button">Refresh</button>
 <button class="btn dark" data-close="userAccessModal" type="button">Selesai</button>
