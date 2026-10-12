@@ -364,9 +364,12 @@ async function emailPasswordLogin(email,password){
 }
 async function requestPasswordReset(email){
   if(!cloudClient)return;
-  const redirectTo=location.origin&&location.origin!=="null"
+  // Normalize to the canonical app URL (must exactly match Auth Redirect URLs).
+  let redirectTo=location.origin&&location.origin!=="null"
     ? location.origin+location.pathname
     : location.href.split("#")[0].split("?")[0];
+  redirectTo=redirectTo.replace(/index\.html?$/i,"");
+  if(!redirectTo.endsWith("/"))redirectTo+="/";
   const {error}=await cloudClient.auth.resetPasswordForEmail(email,{redirectTo});
   if(error)throw error
 }
