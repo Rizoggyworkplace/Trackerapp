@@ -1,0 +1,13 @@
+✔ work task add, status, save and reload update actual progress (2644.184822ms)
+✔ PKBON price accepts consecutive typing through trillions without resetting at thousands (2177.592541ms)
+✔ PKBON price keeps the caret next to the edited digit when regrouping (1436.660939ms)
+✔ task date supports add, edit, cancel, reload and clearing without changing progress (4556.111331ms)
+✔ legacy tasks without dates remain editable and invalid dates cannot replace saved work (2314.994584ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 13351.767171

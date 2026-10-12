@@ -1,0 +1,12 @@
+✔ fractional volumes contribute to the correct total (2.804687ms)
+✔ PKBON create/save, stable site link, fractional volume, duplicate and status change (3015.957179ms)
+✔ PKBON price accepts consecutive typing through trillions without resetting at thousands (2297.840026ms)
+✔ PKBON price keeps the caret next to the edited digit when regrouping (1321.795207ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 6804.597184

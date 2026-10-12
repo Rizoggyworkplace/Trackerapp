@@ -1,0 +1,14 @@
+PASS all four migrations execute on PostgreSQL
+PASS 004 can be rerun safely
+PASS owner saves billion values
+PASS owner adds staff/viewer/admin
+PASS viewer reads shared owner snapshot
+PASS viewer RPC and direct writes denied
+PASS viewer cannot elevate role
+PASS outsider cannot read shared state or audit
+PASS staff writes and stale snapshot conflicts are rejected
+PASS server audit derives actor and before/after fields
+PASS staff cannot edit audit or add members
+PASS admin cannot change outsiders or owner
+PASS disabled member cannot read or write shared data
+13 PostgreSQL checks passed
