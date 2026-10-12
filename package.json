@@ -1,0 +1,20 @@
+{
+  "name": "trackers-workspace",
+  "version": "7.7.0",
+  "private": true,
+  "description": "Trackers Workspace v7 daily operations and shared team workspace",
+  "scripts": {
+    "start": "node server.cjs",
+    "test": "node --test tests/*.test.cjs",
+    "test:security": "node tests/security.verify.cjs",
+    "build": "node scripts/build.cjs"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "clean-css": "^5.3.3",
+    "terser": "^5.51.2"
+  }
+}

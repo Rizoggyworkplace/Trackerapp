@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+
+<html lang="id">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport"/>
+<meta content="#f9f9f9" name="theme-color"/>
+<meta name="application-name" content="Trackers Workspace"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Trackers Workspace"/>
+<link rel="manifest" href="manifest.webmanifest?v=20260923.77"/>
+<link rel="icon" type="image/png" sizes="192x192" href="assets/img/icon-192.png?v=20260923.77"/>
+<link rel="apple-touch-icon" href="assets/img/icon-192.png?v=20260923.77"/>
+<title>Trackers Workspace</title>
+<link rel="stylesheet" href="assets/css/material-icons.css?v=20260923.77"/>
+<link rel="stylesheet" href="assets/css/workspace.css?v=20260923.77"/>
+</head>
+<body>
+<div class="app">
+<aside class="shell-sidebar" aria-label="Navigasi utama">
+<div class="brand"><img class="trackers-logo-image" src="assets/img/trackers-logo-dark.png?v=20260923.77" alt="Trackers"/></div>
+<nav class="sidebar-nav">
+<button class="navbtn active" data-route="dashboard" title="Dashboard" aria-label="Dashboard"><span class="mi mi-dashboard" aria-hidden="true"></span></button>
+<button class="navbtn" data-route="sites" title="Projects" aria-label="Projects"><span class="mi mi-folder" aria-hidden="true"></span></button>
+<button class="navbtn" data-route="bastprocess" title="BAST" aria-label="BAST"><span class="mi mi-description" aria-hidden="true"></span></button>
+<button class="navbtn" data-route="pkbon" title="PKBON" aria-label="PKBON"><span class="mi mi-receipt_long" aria-hidden="true"></span></button>
+<button class="navbtn" data-route="reporting" title="Reporting" aria-label="Reporting"><span class="mi mi-bar_chart" aria-hidden="true"></span></button>
+<button class="navbtn" data-route="settings" title="Settings" aria-label="Settings"><span class="mi mi-settings" aria-hidden="true"></span></button>
+</nav>
+<button class="sidebar-account-btn cloud-account-btn" id="cloudAccountBtn" title="Akun" type="button" aria-label="Akun">
+<span class="mi mi-account_circle" aria-hidden="true"></span>
+<span class="sr-only"><span id="cloudAvatarMini">T</span><strong id="cloudAccountLabel">TRACKERS</strong><small id="cloudAccountSub">Memuat akun...</small></span>
+</button>
+</aside>
+<div class="workspace" id="workspace">
+<main class="main">
+<section class="neo-topbar">
+<div class="topbar-heading"><span class="topbar-eyebrow" id="subtitle">TRACKERS WORKSPACE</span><h1 id="title">Dashboard</h1></div>
+<label class="global-search-bar" for="globalAppSearch">
+<span class="mi mi-search" aria-hidden="true"></span>
+<input id="globalAppSearch" placeholder="Cari site, Project ID, atau Site ID..." aria-label="Pencarian site" type="search"/>
+</label>
+<div class="neo-topbar-actions"><button id="syncIndicator" class="sync-indicator" type="button" data-mode="local" title="Status sinkronisasi">Sync</button>
+<button class="quick-notes-btn" id="quickNotesTop" title="Note Pad" type="button" aria-label="Buka Note Pad"><span class="mi mi-edit_note" aria-hidden="true"></span></button>
+<button class="notify-btn" id="quickRemindersTop" title="Pengingat pekerjaan &amp; tagihan" type="button" aria-label="Buka pengingat pekerjaan dan tagihan"><span class="mi mi-calendar_clock" aria-hidden="true"></span></button>
+<button aria-label="Notifikasi" class="notify-btn" id="notificationBtn" title="Notifikasi" type="button"><span class="mi mi-notifications" aria-hidden="true"></span></button>
+</div>
+</section>
+<section class="view active" id="dashboardView">
+
+<div class="dashboard-approved-grid">
+<section class="panel dashboard-summary-panel">
+<h2 class="dashboard-panel-title">PROJECT SUMMARY</h2>
+<div class="metrics dashboard-summary-cards">
+<button class="metric metric-btn" data-summary="all" type="button"><strong id="mTotal">0</strong><span>Total Site</span><small>Seluruh pekerjaan</small></button>
+<button class="metric metric-btn" data-summary="completed" type="button"><strong id="mDone">0</strong><span>Completed</span><small>Pekerjaan selesai</small></button>
+<button class="metric metric-btn" data-summary="progress" type="button"><strong id="mProgress">0</strong><span>In Progress</span><small>Sedang berjalan</small></button>
+<button class="metric metric-btn" data-summary="attention" type="button"><strong id="mDue">0</strong><span>Need Attention</span><small>Due Soon + Overdue</small></button>
+</div>
+</section>
+<section class="panel dashboard-overall-card" id="overallCard">
+<h2 class="dashboard-panel-title">OVERALL PROGRESS</h2>
+<div class="dashboard-progress-value"><strong id="overall">0%</strong></div>
+<div class="progressring dashboard-progress-bar" id="ring" style="--p:0"></div>
+<h3 id="overallStatus">Belum ada data</h3><p>Dihitung dari site berstatus Completed.</p>
+<div class="statgrid"><div><span>Done</span><strong id="sSites">0</strong></div><div><span>Active</span><strong id="sClients">0</strong></div></div>
+</section>
+</div>
+<section class="panel dashboard-pinned-panel">
+<h2 class="dashboard-panel-title">PINNED PROJECT</h2>
+<div id="pinnedSites"></div>
+</section>
+<section class="panel dashboard-activity-panel"><div class="panelhead"><div><h2>Recent Activity</h2><p>Aktivitas terbaru workspace</p></div></div><div class="dashboard-activity-list" id="dashboardActivityList"></div></section>
+</section>
+<section class="view" id="sitesView">
+<section class="panel">
+<div class="panelhead">
+<div><h2>PROJECTS</h2><p>Daftar seluruh site dan pekerjaan project</p></div>
+<div class="actions bulk-actions">
+<button class="btn dark small" id="addSiteBtn" type="button"><span class="mi mi-add" aria-hidden="true"></span> New Site</button>
+<input accept=".xlsx,.xls,.csv" hidden="" id="siteExcelInput" type="file"/>
+</div>
+</div>
+<div class="project-toolbar"><span id="siteResultCount">0 site</span><select id="projectArchiveFilter" aria-label="Tampilan arsip"><option value="active">Site aktif</option><option value="archive">Arsip site</option><option value="all">Semua site</option></select><button class="btn light small" id="clearSiteFilters" type="button">Reset filter</button><button class="btn light small" id="exportSites" type="button">Export Excel</button></div>
+<div class="filters site-filter-grid">
+<input id="siteSearch" placeholder="Cari nama site..."/>
+<select id="regionalFilter"><option value="">Semua Regional</option></select>
+<select id="tenantFilter"><option value="">Semua Tenant</option></select>
+<select id="sowFilter"><option value="">Semua SOW</option></select>
+<select id="statusFilter"><option value="">Semua Status</option><option>Pending</option><option>In Progress</option><option>Completed</option><option>Blocked</option></select>
+<select id="spmkSort" title="Urutan Tanggal SPMK">
+<option selected="" value="oldest">SPMK Terlama → Terbaru</option>
+<option value="newest">SPMK Terbaru → Terlama</option>
+</select>
+</div>
+<div class="tablewrap"><table><thead><tr><th>Name Site</th><th>Project ID</th><th>Site ID</th><th>Tenant</th><th>Tinggi Tower</th><th>Regional</th><th>SOW</th><th>Status</th></tr></thead><tbody id="siteRows"></tbody></table></div>
+<div class="empty" id="siteEmpty"><div><h3>Projects masih kosong</h3><p>Tambahkan site pertama untuk mulai menggunakan Trackers Workspace.</p></div></div>
+</section>
+</section>
+<section class="view" id="detailView">
+<section class="detail-hero panel">
+<div><button class="detail-back" id="backSites" type="button">← DATA PROJECT</button><h2 id="dName" class="site-name">Site Name</h2><div class="site-codes"><span id="dProject">Project ID</span><span id="dId">Site ID</span><span class="badge pending" id="dBadge">Pending</span></div></div>
+<div class="hero-actions"><button class="btn light small" id="siteReportExcel" type="button">LAPORAN EXCEL</button><button class="btn light small" id="siteReportPdf" type="button">CETAK / PDF</button><button class="btn light small" id="shareSite" type="button">SHARE</button><button class="btn light small" id="pinSite" type="button"><span class="mi mi-keep" aria-hidden="true"></span> PIN</button><button class="btn light small" id="archiveSite" type="button">ARCHIVE</button><button class="btn dark small" id="editSite" type="button">EDIT SITE</button></div>
+</section>
+<div class="detail-grid">
+<section class="panel sitebox"><h2 class="panel-label">INFORMASI SITE</h2><div class="infogrid"><div class="infobox "><span>Regional</span><strong id="dRegion">—</strong></div>
+<div class="infobox "><span>Tenant</span><strong id="dTenant">—</strong></div>
+<div class="infobox "><span>Project ID</span><strong id="dProjectInfo">—</strong></div>
+<div class="infobox "><span>Site ID</span><strong id="dSiteInfo">—</strong></div>
+<div class="infobox "><span>Site ID Client</span><strong id="dClientSiteId">—</strong></div>
+<div class="infobox "><span>Task ID</span><strong id="dTaskId">—</strong></div>
+<div class="infobox "><span>Client</span><strong id="dClient">—</strong></div>
+<div class="infobox "><span>SOW</span><strong id="dWork">—</strong></div>
+<div class="infobox "><span>Tinggi Tower</span><strong id="dTowerHeight">—</strong></div>
+<div class="infobox "><span>No. SPMK</span><strong id="dSpmk">—</strong></div>
+<div class="infobox "><span>Tanggal SPMK</span><strong id="dDate">—</strong></div>
+<div class="infobox "><span>Status Project</span><strong id="dStatus">—</strong></div>
+<div class="infobox span2"><span>Target</span><strong id="dTarget">—</strong></div>
+<div class="infobox "><span>Koordinat</span><strong id="dCoord">—</strong></div>
+<div class="infobox span2"><span>Alamat</span><strong id="dAddress">—</strong></div></div><div class="mapsrow"><button class="btn light small" id="mapsBtn" type="button">Buka Google Maps <span class="mi mi-arrow_outward" aria-hidden="true"></span></button></div></section>
+<section class="panel work-progress"><h2 class="panel-label">PROGRESS PEKERJAAN</h2><div class="progress-top"><strong id="dProgressPct">0%</strong><span>Overall Progress</span></div><div class="progress-track" role="progressbar" aria-label="Progres pekerjaan" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="dProgressBar"><div id="dProgressFill"></div></div><div class="progress-stats"><div><span>SELESAI</span><strong id="dWorkDone">0</strong></div><div><span>PROSES</span><strong id="dWorkActive">0</strong></div><div><span>PENDING</span><strong id="dWorkPending">0</strong></div></div><p class="muted" id="dProgressNote">Tambahkan pekerjaan untuk menghitung progres.</p><div id="dTaskPreview" class="task-preview"></div><button class="btn light" id="manageTasks" type="button">Kelola pekerjaan <span class="mi mi-arrow_outward" aria-hidden="true"></span></button></section>
+<section class="panel"><div class="panelhead"><h2 class="panel-label">STATUS BAST</h2><button class="btn light small" id="editBastFromDetail" type="button">Kelola <span class="mi mi-arrow_outward" aria-hidden="true"></span></button></div><div class="bast-stage-list" id="dBastStages"></div></section>
+<section class="panel"><h2 class="panel-label">RECENT ACTIVITY</h2><div class="detail-activity-list" id="dActivities"></div></section>
+</div>
+<h2 class="section-label">MODUL SITE</h2>
+<div class="featuregrid">
+<button class="feature" id="plnCard" type="button"><span class="feature-icon"><span class="mi mi-bolt" aria-hidden="true"></span></span><div class="feature-copy"><span class="kicker">POWER</span><h3>PLN</h3><p id="plnSub">Belum ada data</p></div><span aria-hidden="true" class="arrow"><span class="mi mi-arrow_outward" aria-hidden="true"></span></span></button>
+<button class="feature" id="onefluxCard" type="button"><span class="feature-icon"><span class="mi mi-checklist" aria-hidden="true"></span></span><div class="feature-copy"><span class="kicker">CHECKLIST</span><h3>Oneflux</h3><p id="onefluxSub">0% • Belum ada checklist</p></div><span aria-hidden="true" class="arrow"><span class="mi mi-arrow_outward" aria-hidden="true"></span></span></button>
+<button class="feature" id="bastCard" type="button"><span class="feature-icon"><span class="mi mi-description" aria-hidden="true"></span></span><div class="feature-copy"><span class="kicker">DOCUMENT FLOW</span><h3>BAST</h3><p id="bastSub">0% • BOQ → GR</p></div><span aria-hidden="true" class="arrow"><span class="mi mi-arrow_outward" aria-hidden="true"></span></span></button>
+<button class="feature" id="financeCard" type="button"><span class="feature-icon"><span class="mi mi-payments" aria-hidden="true"></span></span><div class="feature-copy"><span class="kicker">NOMINAL</span><h3>Harga &amp; Pembayaran</h3><p id="financeSub">Belum ada nominal</p></div><span aria-hidden="true" class="arrow"><span class="mi mi-arrow_outward" aria-hidden="true"></span></span></button>
+<button class="feature" id="pkbonSiteCard" type="button"><span class="feature-icon"><span class="mi mi-receipt_long" aria-hidden="true"></span></span><div class="feature-copy"><span class="kicker">KASBON</span><h3>PKBON</h3><p id="pkbonSiteSub">Belum ada PKBON</p></div><span aria-hidden="true" class="arrow"><span class="mi mi-arrow_outward" aria-hidden="true"></span></span></button>
+</div>
+</section>
+<section class="view" id="reportingView">
+<section class="panel reporting-panel">
+<div class="panelhead">
+<div><h2>REPORTING</h2><p>Ringkasan performa project berdasarkan filter yang dipilih</p></div>
+<div class="actions"><button class="btn light small" id="exportReport" type="button">Export Excel</button><button class="btn light small" id="resetReportFilters" type="button">Reset Filter</button></div>
+</div>
+<div class="report-filter-grid">
+<select id="reportRegional"><option value="">Semua Regional</option></select>
+<select id="reportTenant"><option value="">Semua Tenant</option></select>
+<select id="reportSow"><option value="">Semua SOW</option></select>
+<select id="reportStatus">
+<option value="">Semua Status</option>
+<option>Pending</option>
+<option>In Progress</option>
+<option>Completed</option>
+<option>Blocked</option>
+</select>
+<select id="reportArchive" aria-label="Arsip laporan"><option value="active">Site aktif</option><option value="all">Semua site</option><option value="archive">Arsip site</option></select><input id="reportDateFrom" title="Tanggal SPMK dari" type="date"/>
+<input id="reportDateTo" title="Tanggal SPMK sampai" type="date"/>
+</div>
+<div class="report-kpis">
+<button class="report-kpi" data-report-focus="all" type="button"><span>Total Site</span><strong id="reportTotal">0</strong></button>
+<button class="report-kpi" data-report-focus="completed" type="button"><span>Completed</span><strong id="reportCompleted">0</strong></button>
+<button class="report-kpi" data-report-focus="progress" type="button"><span>In Progress</span><strong id="reportProgress">0</strong></button>
+<button class="report-kpi" data-report-focus="due" type="button"><span>Due Soon</span><strong id="reportDue">0</strong></button>
+<button class="report-kpi" data-report-focus="overdue" type="button"><span>Overdue</span><strong id="reportOverdue">0</strong></button>
+</div>
+<div class="report-grid">
+<div class="report-block">
+<div class="report-block-head"><strong>Per Regional</strong><span id="reportRegionalCount">0 regional</span></div>
+<div class="report-breakdown" id="reportByRegional"></div>
+</div>
+<div class="report-block">
+<div class="report-block-head"><strong>Per Tenant</strong><span id="reportTenantCount">0 tenant</span></div>
+<div class="report-breakdown" id="reportByTenant"></div>
+</div>
+<div class="report-block">
+<div class="report-block-head"><strong>Per SOW</strong><span id="reportSowCount">0 SOW</span></div>
+<div class="report-breakdown" id="reportBySow"></div>
+</div>
+</div>
+<div class="report-block report-table-block">
+<div class="report-block-head"><strong>Detail Site</strong><span id="reportResultCount">0 site</span></div>
+<div class="tablewrap">
+<table class="report-table">
+<thead><tr><th>Name Site</th><th>Regional</th><th>Tenant</th><th>SOW</th><th>Status</th><th>Target</th></tr></thead>
+<tbody id="reportRows"></tbody>
+</table>
+</div>
+</div>
+</section>
+</section>
+<section class="view" id="bastprocessView">
+<section class="panel bast-process-panel">
+<div class="panelhead">
+<div>
+<h2>BAST PROSES</h2>
+<p>Tracking proses dokumen BAST yang terintegrasi dengan Data Site</p>
+</div>
+<button class="btn dark small" id="newBastProcessBtn" type="button"><span class="mi mi-add" aria-hidden="true"></span> New BAST PROSES</button>
+</div>
+<div class="filters bast-process-filters">
+<input id="bastProcessSearch" placeholder="Cari Name Site / Task ID / Project ID..."/>
+<select id="bastProcessAreaFilter"><option value="">Semua Area</option></select>
+<select id="bastProcessStatusFilter">
+<option value="">Semua Proses</option>
+<option value="Need Approval PM">Need Approval PM</option>
+<option value="Manager Area">Manager Area</option>
+<option value="GM Area">GM Area</option>
+<option value="Done">Done</option>
+</select>
+<select id="bastProcessArchiveFilter">
+<option value="active">Aktif</option>
+<option value="archive">Arsip</option>
+<option value="all">Semua</option>
+</select>
+</div>
+<div class="bast-process-grid" id="bastProcessGrid"></div>
+<div class="empty" id="bastProcessEmpty">
+<div><h3>Belum ada BAST PROSES</h3><p>Klik New BAST PROSES untuk mulai tracking dokumen.</p></div>
+</div>
+</section>
+</section>
+<section class="view" id="pkbonView">
+<div id="pkbonIntegrated" class="pkbon-integrated-root">
+<div class="app-shell no-print">
+<header class="app-header">
+<nav aria-label="Navigasi utama" class="tabs">
+<button class="tab active" data-tab="dashboardTab">Dashboard</button>
+<button class="tab" data-tab="formTab">Form</button>
+<button class="tab" data-tab="historyTab">Riwayat</button>
+<button class="tab" data-tab="settingsTab">Pengaturan</button>
+</nav>
+</header>
+<main>
+<section class="tabpane active" id="dashboardTab">
+<div class="section-head">
+<div><span class="eyebrow">Ringkasan kerja</span><h2>Dashboard</h2></div>
+<div class="dashboard-actions">
+<button id="openRekapModal" type="button">Rekap</button>
+<button class="accent" data-open-form=""><span class="mi mi-add" aria-hidden="true"></span> Buat PKBON</button>
+</div>
+</div>
+<div class="dashboard-grid">
+<article class="metric-card accent-card"><span>Bulan ini</span><strong id="dashMonthTotal">Rp 0</strong><small id="dashMonthCount">0 PKBON</small></article>
+<article class="metric-card"><span>Outstanding</span><strong id="dashOutstandingTotal">Rp 0</strong><small id="dashOutstandingCount">0 dokumen</small></article>
+<article class="metric-card"><span>Terbayar</span><strong id="dashPaidTotal">Rp 0</strong><small id="dashPaidCount">0 dokumen</small></article>
+<article class="metric-card dark-card"><span>Total riwayat</span><strong id="dashAllCount">0</strong><small>PKBON tersimpan</small></article>
+</div>
+<div class="dashboard-lower">
+<article class="surface pipeline-card"><div class="card-head"><div><span class="eyebrow">Alur dokumen</span><h3>Status PKBON</h3></div><span class="live-dot"></span></div><div class="status-pipeline" id="dashStatusPipeline"></div></article>
+<article class="surface recent-card"><div class="card-head"><div><span class="eyebrow">Aktivitas</span><h3>PKBON terbaru</h3></div><button class="text-button" data-go-history="">Lihat semua</button></div><div class="recent-list" id="dashRecent"></div></article>
+</div>
+</section>
+<section class="tabpane" id="formTab">
+<div class="section-head">
+<div><span class="eyebrow">Dokumen kerja</span><h2>Form PKBON</h2></div>
+<div class="form-top-actions">
+<button id="btnNew" type="button">Baru</button>
+<button id="btnSave" type="button">Simpan</button>
+<button class="accent" id="btnPrint" type="button">Cetak PDF</button>
+</div>
+</div>
+<div class="surface form-surface">
+<div class="form-block">
+<div class="block-title"><span>01</span><div><h3>Informasi utama</h3><p>Data identitas pengajuan dan status proses.</p></div></div>
+<div class="grid five">
+<label>Status<select id="status"></select></label><label>Nomor PKBON<input id="pkbonNo" placeholder="00838-3/IX/2026"/></label><label>Tanggal<input id="tanggal" type="date"/></label><label>Site<input autocomplete="off" id="siteInput" list="siteOptions" placeholder="Ketik atau pilih site"/><datalist id="siteOptions"></datalist></label><label>Bank/Penerima<select id="bankSelect"></select></label>
+</div>
+<div class="grid three"><label>Project ID<input id="projectId"/></label><label>Pekerjaan<input id="pekerjaan"/></label><label>Keterangan / Nama file PDF<input id="keteranganUmum" placeholder="Jika kosong, memakai uraian pertama"/></label></div>
+</div>
+<div class="form-block">
+<div class="block-title"><span>02</span><div><h3>Rincian pengajuan</h3><p>Pilih template atau isi rincian secara manual.</p></div></div>
+<div class="template-toolbar"><select id="templateSelect"><option value="">Pilih template uraian</option></select><button id="btnApplyTemplate">Gunakan template</button><button class="text-button" id="btnSaveRowTemplate">Simpan baris pertama sebagai template</button></div>
+<div class="table-wrap"><table class="input-table"><thead><tr><th>No</th><th>Uraian</th><th>Sat</th><th>Vol</th><th>Harga Satuan</th><th>Total</th><th>Keterangan</th><th></th></tr></thead><tbody id="itemRows"></tbody></table></div>
+<div class="row-buttons"><button id="btnAddRow"><span class="mi mi-add" aria-hidden="true"></span> Tambah baris</button><strong id="grandTotalLabel">Grand Total: Rp 0</strong></div>
+</div>
+<div class="form-block">
+<div class="block-title"><span>03</span><div><h3>Lampiran</h3><p>Semua lampiran opsional dan bisa diperiksa sebelum dicetak.</p></div></div>
+<div class="attachment-grid">
+<article class="attachment-card"><div class="attachment-preview" id="previewPengajuan"><span>Belum ada gambar</span></div><div><b>Pengajuan</b><small>Halaman lampiran</small></div><div class="attachment-actions"><label class="upload-button">Pilih gambar<input accept="image/*" id="lampiranPengajuan" type="file"/></label><button data-remove-attachment="lampiranPengajuan">Hapus</button></div></article>
+<article class="attachment-card"><div class="attachment-preview" id="previewTransfer"><span>Belum ada gambar</span></div><div><b>Bukti Transfer</b><small>Halaman lampiran</small></div><div class="attachment-actions"><label class="upload-button">Pilih gambar<input accept="image/*" id="lampiranTransfer" type="file"/></label><button data-remove-attachment="lampiranTransfer">Hapus</button></div></article>
+<article class="attachment-card"><div class="attachment-preview" id="previewBuktiBayar"><span>Belum ada gambar</span></div><div><b>Bukti Bayar</b><small>Lampiran tambahan</small></div><div class="attachment-actions"><label class="upload-button">Pilih gambar<input accept="image/*" id="lampiranBuktiBayar" type="file"/></label><button data-remove-attachment="lampiranBuktiBayar">Hapus</button></div></article>
+</div>
+</div>
+</div>
+</section>
+<section class="tabpane" id="historyTab">
+<div class="section-head"><div><span class="eyebrow">Arsip lokal</span><h2>Riwayat PKBON</h2></div></div>
+<div class="surface"><div class="filter-row"><input id="historySearch" placeholder="Cari nomor, site, pekerjaan, atau bank"/><select id="historyStatusFilter"></select></div><div id="historyList"></div></div>
+</section>
+<section class="tabpane" id="settingsTab">
+<div class="section-head">
+<div><span class="eyebrow">Konfigurasi</span><h2>Pengaturan</h2></div>
+</div>
+<div class="settings-accordion">
+<details class="settings-drop">
+<summary>
+<span><strong>Template Dokumen</strong><small>Nomor form, pemohon, ID dan kota</small></span>
+<b>⌄</b>
+</summary>
+<div class="settings-drop-body">
+<div class="grid two">
+<label>Nomor Form Manual<input id="sNomorForm"/></label>
+<label>Prefix Nomor Form<input id="sFormPrefix" placeholder="MINK.002/PROJECT"/></label>
+<label class="switch-label"><span>Nomor Form otomatis</span><input id="sAutoForm" type="checkbox"/></label>
+<label>ID<input id="sId"/></label>
+<label>Nama Pemohon<input id="sNama"/></label>
+<label>Kota<input id="sKota"/></label>
+</div>
+<p class="form-preview">Hasil: <b id="formNumberPreview">-</b></p>
+</div>
+</details>
+<details class="settings-drop">
+<summary>
+<span><strong>Nomor PKBON</strong><small>Nomor baru mengikuti nomor terakhir di Riwayat</small></span>
+<b>⌄</b>
+</summary>
+<div class="settings-drop-body">
+<div class="grid two">
+<label>Nomor urut minimum<input id="sStartNumber" min="1" type="number"/></label>
+<label>Kode setelah nomor (paten)<input id="sPkbonSuffix" value="3" readonly/></label>
+</div>
+<p class="settings-info">Penomoran berjalan otomatis di belakang sistem. Saat membuat PKBON baru, Trackers Workspace memakai nomor terbesar di Riwayat + 1.</p>
+</div>
+</details>
+<details class="settings-drop">
+<summary>
+<span><strong>Master Data</strong><small>Bank, template uraian dan pejabat</small></span>
+<b>⌄</b>
+</summary>
+<div class="settings-drop-body master-settings-body">
+<div class="master-grid">
+<div class="surface pkbon-site-master-hidden" aria-hidden="true"><div class="list" id="siteList"></div></div>
+<div class="surface"><h3>Master Bank</h3><div class="grid three"><label>Nama<input id="mBankNama"/></label><label>Nomor Rekening<input id="mBankRek"/></label><label>Bank<input id="mBank"/></label></div><button class="accent" id="addBank">Tambah bank</button><div class="list" id="bankList"></div></div>
+<div class="surface"><h3>Template Uraian</h3><div class="grid three"><label>Nama Template<input id="mTemplateName"/></label><label>Uraian<input id="mTemplateUraian"/></label><label>Satuan<input id="mTemplateSat" value="Ls"/></label></div><button class="accent" id="addTemplate">Tambah template</button><div class="list" id="templateList"></div></div>
+<div class="surface officer-panel"><h3>Pejabat &amp; Tanda Tangan</h3><div class="officer-create"><div class="grid three"><label>Nama Pejabat<input id="mOfficerName"/></label><label>Jabatan<input id="mOfficerRole"/></label><label>File Tanda Tangan<input accept="image/png,image/jpeg,image/webp" id="mOfficerSig" type="file"/></label></div><button class="accent" id="addOfficer">Tambah pejabat</button></div><div class="list" id="officerList"></div></div>
+</div>
+</div>
+</details>
+<details class="settings-drop">
+<summary>
+<span><strong>Penempatan Pejabat</strong><small>Atur posisi tanda tangan dokumen</small></span>
+<b>⌄</b>
+</summary>
+<div class="settings-drop-body">
+<div class="grid four">
+<label>Diajukan Oleh<select id="sA1Officer"></select></label>
+<label>Diperiksa<select id="sA2Officer"></select></label>
+<label>GM Project<select id="sA3Officer"></select></label>
+<label>Disetujui<select id="sA4Officer"></select></label>
+</div>
+</div>
+</details>
+<details class="settings-drop">
+<summary>
+<span><strong>Backup &amp; Restore</strong><small>Cadangkan atau pulihkan data PKBON</small></span>
+<b>⌄</b>
+</summary>
+<div class="settings-drop-body">
+<div class="backup-actions">
+<button class="accent" id="btnBackup" type="button">Download backup</button>
+<label class="upload-button">Restore backup<input accept="application/json,.json" id="restoreFile" type="file"/></label>
+</div>
+</div>
+</details>
+</div>
+<div class="settings-savebar">
+<button class="accent" id="saveSettings" type="button">Simpan Pengaturan</button>
+</div>
+</section>
+</main>
+</div>
+<div id="printArea">
+<section class="paper page1">
+<div class="doc-header"><img alt="Logo" class="logo" src="data:image/png;base64,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"/><div class="titleblock"><h2>FORMULIR PERMOHONAN KASBON OPERASIONAL</h2><table class="meta"><tr><td>Nomor Form</td><td>:</td><td id="pvNomorForm"></td></tr><tr><td>Nomor PKBon</td><td>:</td><td id="pvPkbonNo"></td></tr><tr><td>Tanggal</td><td>:</td><td id="pvTanggal"></td></tr></table></div></div><hr/>
+<table class="identity"><tr><td>ID</td><td>:</td><td id="pvId"></td></tr><tr><td>NAMA</td><td>:</td><td id="pvNama"></td></tr><tr><td>PROJECT ID</td><td>:</td><td id="pvProjectId"></td></tr><tr><td>PEKERJAAN</td><td>:</td><td id="pvPekerjaan"></td></tr><tr><td>SITE</td><td>:</td><td id="pvSite"></td></tr></table><hr/>
+<p class="intro">Bersama ini saya mengajukan permohonan dana untuk Pekerjaan diatas dengan rincian sebagai berikut :</p>
+<table class="doc-table"><thead><tr><th>NO</th><th>URAIAN</th><th>SAT</th><th>VOL</th><th>HARGA SATUAN</th><th>TOTAL PENGAJUAN</th><th>KETERANGAN</th></tr></thead><tbody id="pvRows"></tbody><tfoot><tr><td colspan="4"></td><th>GRAND TOTAL PENGAJUAN</th><th id="pvGrandTotal"></th><td></td></tr></tfoot></table>
+<div class="terbilang"><b>Terbilang</b><span>:</span><strong id="pvTerbilang"></strong></div><p>Mohon Dana di Transfer ke Rekening :</p>
+<table class="identity bankinfo"><tr><td>Nama</td><td>:</td><td id="pvBankNama"></td></tr><tr><td>No Rekening</td><td>:</td><td id="pvBankRek"></td></tr><tr><td>Bank</td><td>:</td><td id="pvBank"></td></tr></table><p class="citydate" id="pvKotaTanggal"></p>
+<div class="approval-grid"><div class="approval"><div>Diajukan Oleh :</div><div class="signature-holder"><img alt="Tanda tangan" id="pvSig1"/></div><b id="pvAppr1Name"></b><i id="pvAppr1Role"></i><span>Tgl</span></div><div class="approval"><div>Diperiksa :</div><div class="signature-holder"><img alt="Tanda tangan" id="pvSig2"/></div><b id="pvAppr2Name"></b><i id="pvAppr2Role"></i><span>Tgl</span></div><div class="approval"><div> </div><div class="signature-holder"><img alt="Tanda tangan" id="pvSig3"/></div><b id="pvAppr3Name"></b><i id="pvAppr3Role"></i><span>Tgl</span></div><div class="approval"><div>Disetujui :</div><div class="signature-holder"><img alt="Tanda tangan" id="pvSig4"/></div><b id="pvAppr4Name"></b><i id="pvAppr4Role"></i><span>Tgl</span></div></div>
+</section>
+<section class="paper page2" id="page2"><div class="attachment-title">Pengajuan :</div><div class="attachment-box"><img alt="Lampiran Pengajuan" id="pvLampiranPengajuan"/></div><div class="attachment-title second">Bukti Transfer :</div><div class="attachment-box"><img alt="Bukti Transfer" id="pvLampiranTransfer"/></div></section>
+<section class="paper page3" id="page3"><div class="attachment-title">Bukti Bayar :</div><div class="attachment-box full"><img alt="Bukti Bayar" id="pvLampiranBuktiBayar"/></div></section>
+</div>
+<div aria-labelledby="rekapModalTitle" aria-modal="true" class="modal rekap-modal" id="rekapModal" role="dialog">
+<div class="modal-card rekap-modal-card">
+<div class="rekap-modal-head">
+<div><span class="eyebrow">Laporan</span><h3 id="rekapModalTitle">Rekap PKBON</h3></div>
+<button aria-label="Tutup" id="closeRekapModal" type="button"><span class="mi mi-close" aria-hidden="true"></span></button>
+</div>
+<div class="grid five rekap-filter">
+<label>Bulan<select id="rekapMonth"></select></label>
+<label>Tahun<select id="rekapYear"></select></label>
+<label>Site<select id="rekapSite"></select></label>
+<label>Status<select id="rekapStatus"></select></label>
+<label>Cari<input id="rekapSearch" placeholder="Nomor / pekerjaan / bank"/></label>
+</div>
+<div class="summary-cards">
+<div class="summary-card"><small>Jumlah PKBON</small><strong id="rekapCount">0</strong></div>
+<div class="summary-card"><small>Total Pengajuan</small><strong id="rekapTotal">Rp 0</strong></div>
+<div class="summary-card"><small>Rata-rata</small><strong id="rekapAverage">Rp 0</strong></div>
+</div>
+<div class="table-wrap rekap-popup-table">
+<table class="rekap-table">
+<thead><tr><th>No</th><th>Nomor PKBON</th><th>Tanggal</th><th>Status</th><th>Site</th><th>Project ID</th><th>Pekerjaan</th><th>Penerima/Bank</th><th>Total</th></tr></thead>
+<tbody id="rekapRows"></tbody>
+</table>
+</div>
+<div class="modal-actions rekap-modal-actions">
+<button class="accent" id="btnExportExcel" type="button">Export Excel</button>
+<button id="closeRekapModalBottom" type="button">Tutup</button>
+</div>
+</div>
+</div>
+<div aria-labelledby="validationTitle" aria-modal="true" class="modal" id="validationModal" role="dialog"><div class="modal-card"><span class="modal-icon">!</span><h3 id="validationTitle">Dokumen belum lengkap</h3><p>Periksa data berikut sebelum mencetak:</p><ul id="validationList"></ul><div class="modal-actions"><button id="cancelPrint">Kembali periksa</button><button class="accent" id="forcePrint">Tetap cetak</button></div></div></div>
+<div class="toast no-print" id="pkbonToast"></div>
+</div>
+</section>
+
+<section class="view" id="notesView">
+<section class="notes-panel">
+<div class="notes-head">
+<div><p class="eyebrow">PERSONAL WORKSPACE</p><h2>NOTE PAD</h2><p class="notes-subtitle">Catatan cepat seperti Google Keep, tersimpan bersama workspace.</p></div>
+<div class="notes-head-actions">
+<button class="notes-mode-btn active" id="notesActiveMode" type="button">Catatan</button>
+<button class="notes-mode-btn" id="notesArchiveMode" type="button">Arsip</button>
+</div>
+</div>
+<div class="notes-toolbar">
+<label class="notes-search" for="noteSearchInput"><span>⌕</span><input id="noteSearchInput" type="search" placeholder="Cari catatan..." autocomplete="off"/></label>
+<button class="btn dark notes-new-btn" id="newNoteBtn" type="button"><span class="mi mi-add" aria-hidden="true"></span> Catatan Baru</button>
+</div>
+<button class="notes-quick-compose" id="quickNewNoteBtn" type="button"><span>Tulis catatan...</span><b><span class="mi mi-add" aria-hidden="true"></span></b></button>
+<div class="notes-section" id="notesPinnedSection">
+<div class="notes-section-title"><span>PINNED</span><small id="notesPinnedCount">0</small></div>
+<div class="notes-grid" id="notesPinnedGrid"></div>
+</div>
+<div class="notes-section">
+<div class="notes-section-title"><span id="notesMainLabel">CATATAN</span><small id="notesMainCount">0</small></div>
+<div class="notes-grid" id="notesMainGrid"></div>
+</div>
+<div class="notes-empty" id="notesEmpty">
+<div class="notes-empty-icon"><span class="mi mi-sticky_note_2" aria-hidden="true"></span></div><h3>Belum ada catatan</h3><p>Tekan Catatan Baru untuk menyimpan ide, pekerjaan, nomor penting, atau pengingat singkat.</p>
+</div>
+</section>
+</section>
+<section class="view" id="settingsView">
+<section class="panel">
+<div class="panelhead"><div><h2>PENGATURAN</h2><p>Atur tampilan dan data referensi Trackers Workspace</p></div></div>
+<div class="settings-menu">
+<button class="settings-row" id="themeSettingRow" type="button">
+<span class="settings-row-text"><strong>Tampilan</strong><small id="themeSettingSubtitle">Trackers Green</small></span>
+<span style="display:flex;align-items:center;gap:10px"><span class="theme-preview"><i class="theme-dot" id="themeDot1"></i><i class="theme-dot" id="themeDot2"></i></span><span class="settings-chevron"><span class="mi mi-chevron_right" aria-hidden="true"></span></span></span>
+</button>
+<button class="settings-row" id="installAppSettingRow" type="button">
+<span class="settings-row-text"><strong>Install App</strong><small id="installAppSubtitle">Install Trackers Workspace di perangkat ini</small></span><span class="settings-chevron"><span class="mi mi-chevron_right" aria-hidden="true"></span></span>
+</button>
+<button class="settings-row" id="clientSettingRow" type="button">
+<span class="settings-row-text"><strong>Client</strong><small id="clientSettingSubtitle">0 client tersimpan</small></span><span class="settings-chevron"><span class="mi mi-chevron_right" aria-hidden="true"></span></span>
+</button>
+<button class="settings-row" id="tenantSettingRow" type="button">
+<span class="settings-row-text"><strong>Tenant</strong><small id="tenantSettingSubtitle">0 tenant tersimpan</small></span><span class="settings-chevron"><span class="mi mi-chevron_right" aria-hidden="true"></span></span>
+</button>
+<button class="settings-row" id="targetSettingRow" type="button">
+<span class="settings-row-text"><strong>Target Pekerjaan</strong><small id="targetSettingSubtitle">0 aturan target</small></span><span class="settings-chevron"><span class="mi mi-chevron_right" aria-hidden="true"></span></span>
+</button>
+<button class="settings-row" id="backupWorkspaceRow" type="button"><span class="settings-row-text"><strong>Backup &amp; Restore Workspace</strong><small>Seluruh site, catatan, pembayaran, dan lampiran PKBON</small></span><span class="settings-chevron"><span class="mi mi-chevron_right" aria-hidden="true"></span></span></button>
+<button class="settings-row settings-row-danger" id="resetAllDataSettingRow" type="button">
+<span class="settings-row-text"><strong>Reset Semua Data</strong><small>Hapus seluruh data kerja Trackers Workspace dan PKBON</small></span><span class="settings-chevron"><span class="mi mi-chevron_right" aria-hidden="true"></span></span>
+</button>
+<button class="settings-row" id="userAccessSettingRow" type="button">
+<span class="settings-row-text"><strong>Akses User</strong><small id="userAccessSubtitle">Khusus Owner / Admin</small></span><span class="settings-chevron"><span class="mi mi-chevron_right" aria-hidden="true"></span></span>
+</button>
+</div>
+</section>
+</section>
+</main>
+</div>
+</div>
+<div class="mobilebar">
+<button class="mobnav active" data-route="dashboard"><span class="mi mi-dashboard" aria-hidden="true"></span><small>Home</small></button>
+<button class="mobnav" data-route="sites"><span class="mi mi-folder" aria-hidden="true"></span><small>Projects</small></button>
+<button class="mobnav" data-route="bastprocess"><span class="mi mi-description" aria-hidden="true"></span><small>BAST</small></button>
+<button class="mobnav" data-route="pkbon"><span class="mi mi-receipt_long" aria-hidden="true"></span><small>PKBON</small></button>
+<button class="mobnav" data-route="notes"><span class="mi mi-edit_note" aria-hidden="true"></span><small>Notes</small></button>
+<button class="mobnav" data-route="reporting"><span class="mi mi-bar_chart" aria-hidden="true"></span><small>Report</small></button>
+<button class="mobnav" data-route="settings"><span class="mi mi-settings" aria-hidden="true"></span><small>Setting</small></button>
+</div>
+<!-- BAST Site Share Modal -->
+<div class="modalbg" id="bastSiteShareModal"><div class="modal small">
+<div class="modalhead">
+<div><p class="eyebrow">BAST PROSES</p><h2>Share</h2><small class="muted">Format siap WhatsApp</small></div>
+<button class="close" data-close="bastSiteShareModal"><span class="mi mi-close" aria-hidden="true"></span></button>
+</div>
+<textarea id="bastSiteShareText" readonly="" rows="12"></textarea>
+<div class="formactions" style="justify-content:space-between">
+<button class="btn light" id="copyBastSiteShare" type="button">Copy</button>
+<button class="btn dark" id="whatsappBastSiteShare" type="button">WhatsApp</button>
+</div>
+</div></div>
+<!-- BAST Process Modal -->
+<div class="modalbg" id="bastProcessModal"><div class="modal">
+<div class="modalhead">
+<div><p class="eyebrow">BAST PROSES</p><h2 id="bastProcessModalTitle">New BAST PROSES</h2></div>
+<button class="close" data-close="bastProcessModal"><span class="mi mi-close" aria-hidden="true"></span></button>
+</div>
+<form class="formgrid" id="bastProcessForm">
+<input name="recordId" type="hidden"/>
+<label class="field span2">
+<span>Name Site</span>
+<input autocomplete="off" id="bastSiteSearch" list="bastSiteOptions" name="siteSearch" placeholder="Ketik untuk cari nama site..." required=""/>
+<datalist id="bastSiteOptions"></datalist>
+</label>
+<label class="field span2">
+<span>TASK ID</span>
+<input name="taskId" placeholder="Input TASK ID" required=""/>
+</label>
+<div class="bast-form-section span2">
+<div class="bast-form-title">PO</div>
+<div class="bast-subgrid three">
+<label class="field"><span>Link PO</span><input name="poLink" placeholder="https://..." type="url"/></label>
+<label class="field"><span>Nomor PO</span><input name="poNumber" placeholder="Nomor PO"/></label>
+<label class="field"><span>Tanggal PO</span><input name="poDate" type="date"/></label>
+</div>
+</div>
+<div class="bast-form-section span2">
+<div class="bast-form-title">BOQ</div>
+<label class="field"><span>Link BOQ</span><input name="boqLink" placeholder="https://..." type="url"/></label>
+</div>
+<div class="bast-form-section span2">
+<div class="bast-form-title">BAUT</div>
+<div class="bast-subgrid two">
+<label class="field"><span>Link / Input BAUT</span><input name="bautInput" placeholder="Link atau keterangan BAUT"/></label>
+<label class="field"><span>Proses</span>
+<select name="bautProcess">
+<option>Need Approval PM</option><option>Manager Area</option><option>GM Area</option><option>Done</option>
+</select>
+</label>
+</div>
+</div>
+<div class="bast-form-section span2">
+<div class="bast-form-title">BAPWP</div>
+<div class="bast-subgrid two">
+<label class="field"><span>Input BAPWP</span><input name="bapwpInput" placeholder="Link / nomor / keterangan BAPWP"/></label>
+<label class="field"><span>Proses</span>
+<select name="bapwpProcess">
+<option>Need Approval PM</option><option>Manager Area</option><option>GM Area</option><option>Done</option>
+</select>
+</label>
+</div>
+</div>
+<div class="bast-form-section span2">
+<div class="bast-form-title">BAST</div>
+<div class="bast-subgrid two">
+<label class="field"><span>Input BAST</span><input name="bastInput" placeholder="Link / nomor / keterangan BAST"/></label>
+<label class="field"><span>Proses</span>
+<select name="bastProcess">
+<option>Need Approval PM</option><option>Manager Area</option><option>GM Area</option><option>Done</option>
+</select>
+</label>
+</div>
+</div>
+<div class="formactions span2">
+<button class="btn light" data-close="bastProcessModal" type="button">Batal</button>
+<button class="btn dark">Simpan BAST PROSES</button>
+</div>
+</form>
+</div></div>
+<!-- PKBON Detail Site Modal -->
+<div class="modalbg" id="pkbonSiteModal"><div class="modal pkbon-site-modal">
+<div class="modalhead">
+<div>
+<p class="eyebrow">DETAIL SITE</p>
+<h2>PKBON</h2>
+<small class="muted" id="pkbonSiteModalInfo">-</small>
+</div>
+<button class="close" data-close="pkbonSiteModal"><span class="mi mi-close" aria-hidden="true"></span></button>
+</div>
+<div class="pkbon-site-summary">
+<div class="pkbon-site-stat">
+<span>Total PKBON</span>
+<strong id="pkbonSiteCount">0</strong>
+<small id="pkbonSiteTotal">Rp0</small>
+</div>
+<div class="pkbon-site-stat">
+<span>Outstanding</span>
+<strong id="pkbonSiteOutstandingCount">0</strong>
+<small id="pkbonSiteOutstanding">Rp0</small>
+</div>
+<div class="pkbon-site-stat">
+<span>Terbayar</span>
+<strong id="pkbonSitePaidCount">0</strong>
+<small id="pkbonSitePaid">Rp0</small>
+</div>
+</div>
+<div class="pkbon-site-toolbar">
+<strong>Riwayat PKBON Site</strong>
+<button class="btn dark small" id="newPkbonForSite" type="button"><span class="mi mi-add" aria-hidden="true"></span> Buat PKBON</button>
+</div>
+<div class="pkbon-site-history" id="pkbonSiteHistory"></div>
+<div class="formactions">
+<button class="btn light" data-close="pkbonSiteModal" type="button">Tutup</button>
+<button class="btn dark" id="openPkbonModule" type="button">Buka Modul PKBON</button>
+</div>
+</div></div>
+<!-- Harga & Pembayaran Modal -->
+<div class="modalbg" id="financeModal"><div class="modal finance-modal">
+<div class="modalhead">
+<div>
+<p class="eyebrow">DATA SITE</p>
+<h2>Harga &amp; Pembayaran</h2>
+<small class="muted" id="financeBuild"></small>
+<small class="muted" id="financeSiteInfo">-</small>
+<label class="field"><span>Jatuh tempo tagihan client (opsional)</span><input id="financeDueDate" type="date"/></label>
+</div>
+<button class="close" data-close="financeModal"><span class="mi mi-close" aria-hidden="true"></span></button>
+</div>
+<div class="finance-summary finance-summary-v38">
+<div class="finance-total-card">
+<span>Harga SOW Client</span>
+<strong id="financeTotalClient">Rp0</strong>
+<small>Total nilai pekerjaan + Addwork</small>
+</div>
+<div class="finance-total-card">
+<span>Pengeluaran PKBON</span>
+<strong id="financeTotalExpense">Rp0</strong>
+<small id="financeExpenseNote">Status Terbayar / Selesai</small>
+</div>
+<div class="finance-total-card">
+<span>Pembayaran Client</span>
+<strong id="financeTotalPayment">Rp0</strong>
+<small>Akumulasi pembayaran per tanggal</small>
+</div>
+<div class="finance-total-card">
+<span>Sisa Pembayaran</span>
+<strong id="financeReceivable">Rp0</strong>
+<small>Harga SOW − Pembayaran Client</small>
+</div>
+<div class="finance-total-card finance-result-card">
+<span>Untung / Rugi Proyek</span>
+<strong id="financeProfit">Rp0</strong>
+<small>Harga SOW − Pengeluaran PKBON</small>
+</div>
+<div class="finance-total-card finance-result-card">
+<span>Cashflow Berjalan</span>
+<strong id="financeCashflow">Rp0</strong>
+<small>Pembayaran Client − Pengeluaran PKBON</small>
+</div>
+</div>
+<div class="finance-toolbar">
+<div>
+<strong id="financeSowTitle">SOW</strong>
+<small class="muted">Pengeluaran otomatis dari PKBON. Addwork hanya muncul jika ditambahkan manual.</small>
+</div>
+</div>
+<div class="finance-sections" id="financeSections"></div>
+<div class="finance-unallocated" id="financeUnallocatedWrap" style="display:none">
+<div>
+<strong>PKBON belum teralokasi ke item</strong>
+<small>Nominal tetap masuk ke total pengeluaran proyek.</small>
+</div>
+<strong id="financeUnallocated">Rp0</strong>
+</div>
+<div class="formactions">
+<button class="btn light" data-close="financeModal" type="button">Batal</button>
+<button class="btn dark" id="saveFinance" type="button">Simpan Harga</button>
+</div>
+</div></div>
+<!-- Pembayaran Client Modal -->
+<div class="modalbg" id="financePaymentModal"><div class="modal small finance-payment-modal">
+<div class="modalhead">
+<div>
+<p class="eyebrow">PEMBAYARAN CLIENT</p>
+<h2 id="financePaymentTitle">Pembayaran</h2>
+<small class="muted" id="financePaymentSubtitle">-</small>
+</div>
+<button class="close" data-close="financePaymentModal"><span class="mi mi-close" aria-hidden="true"></span></button>
+</div>
+<div class="finance-payment-total">
+<span>Total Pembayaran</span>
+<strong id="financePaymentTotal">Rp0</strong>
+</div>
+<div class="finance-payment-rows" id="financePaymentRows"></div>
+<button class="btn light finance-payment-add" id="addFinancePayment" type="button"><span class="mi mi-add" aria-hidden="true"></span> Tambah Pembayaran</button>
+<div class="formactions">
+<button class="btn dark" data-close="financePaymentModal" type="button">Selesai</button>
+</div>
+</div></div>
+<!-- Share Site Modal -->
+<div class="modalbg" id="shareSiteModal"><div class="modal small">
+<div class="modalhead"><div><p class="eyebrow">SHARE SITE</p><h2>Bagikan Data Site</h2></div><button class="close" data-close="shareSiteModal"><span class="mi mi-close" aria-hidden="true"></span></button></div>
+<div class="share-mode-tabs">
+<button class="share-mode active" id="shareModeDefault" type="button">Default</button>
+<button class="share-mode" id="shareModeHide" type="button">Hide</button>
+</div>
+<p class="share-mode-note" id="shareModeNote">Default menyalin seluruh data site.</p>
+<textarea id="shareSiteText" readonly="" rows="16"></textarea>
+<div class="formactions" style="justify-content:space-between">
+<button class="btn light" id="copyShareSite" type="button">Copy</button>
+<div><button class="btn light" id="whatsappShareSite" type="button">WhatsApp</button><button class="btn dark" id="nativeShareSite" type="button">Share</button></div>
+</div>
+</div></div>
+<!-- Notification Modal -->
+<div class="modalbg" id="notificationModal"><div class="modal">
+<div class="modalhead">
+<div><p class="eyebrow">NOTIFIKASI</p><h2>Recent Activity</h2></div>
+<button class="close" data-close="notificationModal"><span class="mi mi-close" aria-hidden="true"></span></button>
+</div>
+<div class="notification-toolbar">
+<label class="field">
+<span>Filter Tanggal</span>
+<input id="notificationDateFilter" type="date"/>
+</label>
+<button class="btn light small" id="clearNotificationDate" type="button">Reset</button>
+</div>
+<div id="reminderList" class="action-list"></div><h3>Aktivitas terbaru</h3><div class="simple-list notification-scroll" id="notificationList"></div>
+</div></div>
+<!-- Activity Detail Modal -->
+<div class="modalbg" id="activityDetailModal"><div class="modal small">
+<div class="modalhead">
+<div><p class="eyebrow">TRACKING</p><h2>Detail Activity</h2></div>
+<button class="close" data-close="activityDetailModal"><span class="mi mi-close" aria-hidden="true"></span></button>
+</div>
+<div class="activity-detail-card">
+<span>Activity</span><strong id="activityDetailText">-</strong>
+</div>
+<div class="activity-detail-card">
+<span>Waktu</span><strong id="activityDetailTime">-</strong>
+</div>
+<div class="activity-detail-card">
+<span>Site</span><strong id="activityDetailSite">-</strong>
+</div>
+<div class="formactions">
+<button class="btn dark" id="activityGoSite" type="button">Buka Site</button>
+</div>
+</div></div>
+<!-- Summary Modal -->
+<div class="modalbg" id="summaryModal"><div class="modal">
+<div class="modalhead"><div><p class="eyebrow">PROJECT SUMMARY</p><h2 id="summaryModalTitle">Site</h2></div><button class="close" data-close="summaryModal"><span class="mi mi-close" aria-hidden="true"></span></button></div>
+<div class="summary-region-grid" id="summaryRegional"></div>
+<div class="simple-list" id="summarySiteList"></div>
+</div></div>
+<!-- User Access Modal -->
+<div class="modalbg" id="userAccessModal"><div class="modal">
+<div class="modalhead">
+<div><p class="eyebrow">ADMIN</p><h2>Akses User</h2><small class="muted">Kelola role akun yang sudah dibuat di Supabase.</small></div>
+<button class="close" data-close="userAccessModal"><span class="mi mi-close" aria-hidden="true"></span></button>
+</div>
+<div class="admin-user-note">
+<strong>Private access</strong>
+<small>Pendaftaran publik dimatikan. Untuk membuat akun baru, Admin membuat user dari Supabase Authentication → Users.</small>
+</div>
+<form id="teamJoinForm"><p>Akun baru dibuat dahulu oleh Admin di Supabase. Tambahkan email akun tersebut untuk berbagi data workspace ini. Data pribadi akun tetap tersimpan terpisah.</p><label class="field"><span>Email anggota</span><input id="teamEmail" type="email" required/></label><label class="field"><span>Hak akses</span><select id="teamRole"><option value="project_manager">Staf — edit data kerja</option><option value="viewer">Viewer — hanya baca dan ekspor</option><option value="admin">Admin — edit dan kelola anggota</option></select></label><button class="btn dark small" type="submit">Tambahkan ke workspace</button><p id="teamMessage" role="status"></p></form><div class="admin-user-list" id="adminUserList"></div>
+<div class="formactions">
+<button class="btn light" id="refreshAdminUsers" type="button">Refresh</button>
+<button class="btn dark" data-close="userAccessModal" type="button">Selesai</button>
+</div>
+</div></div>
+<!-- Theme Settings Modal -->
+<div class="modalbg" id="themeModal"><div class="modal small">
+<div class="modalhead"><div><p class="eyebrow">TAMPILAN</p><h2>Pilih tema</h2></div><button class="close" data-close="themeModal"><span class="mi mi-close" aria-hidden="true"></span></button></div>
+<div class="theme-choice-grid" id="themeChoices"></div>
+</div></div>
+<!-- Client Settings Modal -->
+<div class="modalbg" id="clientSettingsModal"><div class="modal">
+<div class="modalhead"><div><p class="eyebrow">PENGATURAN</p><h2>Client</h2></div><button class="close" data-close="clientSettingsModal"><span class="mi mi-close" aria-hidden="true"></span></button></div>
+<div class="toolrow"><span class="muted">Daftar client untuk dropdown Data Site</span><button class="btn dark small" id="addClientFromSettings">Tambah</button></div>
+<div class="simple-list" id="clientSettingsList"></div>
+</div></div>
+<!-- Tenant Settings Modal -->
+<div class="modalbg" id="tenantSettingsModal"><div class="modal">
+<div class="modalhead"><div><p class="eyebrow">PENGATURAN</p><h2>Tenant</h2></div><button class="close" data-close="tenantSettingsModal"><span class="mi mi-close" aria-hidden="true"></span></button></div>
+<div class="toolrow"><span class="muted">Daftar tenant untuk dropdown Data Site</span><button class="btn dark small" id="addTenantFromSettings">Tambah</button></div>
+<div class="simple-list" id="tenantSettingsList"></div>
+</div></div>
+<!-- Tenant Input Modal -->
+<div class="modalbg" id="tenantModal"><div class="modal small">
+<div class="modalhead"><div><p class="eyebrow">MASTER DATA</p><h2>Tambah Tenant</h2></div><button class="close" data-close="tenantModal"><span class="mi mi-close" aria-hidden="true"></span></button></div>
+<form class="formgrid" id="tenantForm">
+<label class="field span2"><span>Nama Tenant</span><input name="name" placeholder="Nama tenant" required=""/></label>
+<div class="formactions span2"><button class="btn light" data-close="tenantModal" type="button">Batal</button><button class="btn dark">Simpan Tenant</button></div>
+</form>
+</div></div>
+<!-- Target Settings Modal -->
+<div class="modalbg" id="targetSettingsModal"><div class="modal">
+<div class="modalhead"><div><p class="eyebrow">PENGATURAN</p><h2>Target Pekerjaan</h2></div><button class="close" data-close="targetSettingsModal"><span class="mi mi-close" aria-hidden="true"></span></button></div>
+<div class="toolrow"><span class="muted">Regional × SOW</span><button class="btn dark small" id="addRuleFromSettings">Tambah</button></div>
+<div class="simple-list" id="targetSettingsList"></div>
+</div></div>
+<!-- New Site Choice Modal -->
+<div class="modalbg" id="newSiteModal"><div class="modal small">
+<div class="modalhead">
+<div><p class="eyebrow">PROJECTS</p><h2>New Site</h2><small class="muted">Pilih cara menambahkan site.</small></div>
+<button class="close" data-close="newSiteModal"><span class="mi mi-close" aria-hidden="true"></span></button>
+</div>
+<div class="choice-grid">
+<button class="choice-card" id="newSiteSingleBtn" type="button">
+<span aria-hidden="true" class="choice-icon"><span class="mi mi-note_add" aria-hidden="true"></span></span><span><strong>Satu Site</strong><small>Input satu site secara manual.</small></span><span class="choice-arrow"><span class="mi mi-arrow_outward" aria-hidden="true"></span></span>
+</button>
+<button class="choice-card" id="newSiteBulkBtn" type="button">
+<span aria-hidden="true" class="choice-icon"><span class="mi mi-list_alt" aria-hidden="true"></span></span><span><strong>Banyak Site</strong><small>Tambahkan banyak site melalui file.</small></span><span class="choice-arrow"><span class="mi mi-arrow_outward" aria-hidden="true"></span></span>
+</button>
+</div>
+</div></div>
+<!-- Bulk Site Choice Modal -->
+<div class="modalbg" id="bulkSiteModal"><div class="modal small">
+<div class="modalhead">
+<div><p class="eyebrow">PROJECTS</p><h2>Banyak Site</h2><small class="muted">Import data atau ambil format terlebih dahulu.</small></div>
+<button class="close" data-close="bulkSiteModal"><span class="mi mi-close" aria-hidden="true"></span></button>
+</div>
+<div class="choice-grid">
+<button class="choice-card" id="importSiteExcel" type="button">
+<span aria-hidden="true" class="choice-icon"><span class="mi mi-upload" aria-hidden="true"></span></span><span><strong>Import Excel</strong><small>Pilih file XLSX, XLS, atau CSV.</small></span><span class="choice-arrow"><span class="mi mi-arrow_outward" aria-hidden="true"></span></span>
+</button>
+<button class="choice-card" id="downloadSiteTemplate" type="button">
+<span aria-hidden="true" class="choice-icon"><span class="mi mi-download" aria-hidden="true"></span></span><span><strong>Download Format</strong><small>Unduh template sebelum mengisi data.</small></span><span class="choice-arrow"><span class="mi mi-arrow_outward" aria-hidden="true"></span></span>
+</button>
+</div>
+</div></div>
+<!-- Import Site Result Modal -->
+<div class="modalbg" id="importSiteResultModal"><div class="modal small">
+<div class="modalhead">
+<div><p class="eyebrow">IMPORT DATA SITE</p><h2>Hasil Import</h2></div>
+<button class="close" data-close="importSiteResultModal"><span class="mi mi-close" aria-hidden="true"></span></button>
+</div>
+<div class="import-summary-grid">
+<div class="import-summary-card"><span>Baris Dibaca</span><strong id="importReadCount">0</strong></div>
+<div class="import-summary-card"><span>Site Baru</span><strong id="importNewCount">0</strong></div>
+<div class="import-summary-card"><span>Diupdate</span><strong id="importUpdateCount">0</strong></div>
+<div class="import-summary-card"><span>Dilewati</span><strong id="importSkipCount">0</strong></div>
+</div>
+<div class="import-notes" id="importSiteNotes"></div>
+<div class="formactions"><button class="btn dark" data-close="importSiteResultModal" type="button">Selesai</button></div>
+</div></div>
+<!-- Site Modal -->
+<div class="modalbg" id="siteModal"><div class="modal">
+<div class="modalhead"><div><p class="eyebrow">PROJECTS</p><h2 id="siteModalTitle">New Site</h2></div><button class="close" data-close="siteModal"><span class="mi mi-close" aria-hidden="true"></span></button></div>
+<form class="formgrid" id="siteForm">
+<input name="recordId" type="hidden"/>
+<label class="field"><span>Client <button class="inline-link" id="quickAddClient" type="button"><span class="mi mi-add" aria-hidden="true"></span> Tambah</button></span><select id="clientSelect" name="client" required=""><option value="">Pilih Client</option></select></label>
+<label class="field"><span>Tenant <button class="inline-link" id="quickAddTenant" type="button"><span class="mi mi-add" aria-hidden="true"></span> Tambah</button></span><select id="tenantSelect" name="tenant" required=""><option value="">Pilih Tenant</option></select></label>
+<label class="field"><span>Project ID</span><input name="projectId" placeholder="Project ID" required=""/></label>
+<label class="field"><span>Site Name</span><input name="siteName" placeholder="Nama site" required=""/></label>
+<label class="field"><span>Site ID</span><input name="siteId" placeholder="Site ID" required=""/></label>
+<label class="field"><span>Site ID Client</span><input name="clientSiteId" placeholder="Site ID dari client"/></label>
+<label class="field"><span>Tinggi Tower (m)</span><input name="towerHeight" inputmode="decimal" min="0" step="0.1" type="number" placeholder="Contoh: 42"/></label>
+<label class="field"><span>Regional</span>
+<select id="siteRegionPreset" name="regionPreset" required="">
+<option value="">Pilih Regional</option>
+<option>Sumbagsel</option>
+<option>Jawa Tengah</option>
+<option>Jawa Timur</option>
+<option value="__custom">Lainnya...</option>
+</select>
+<input class="hidden" id="siteRegionCustom" name="regionCustom" placeholder="Masukkan regional lain"/>
+</label>
+<label class="field"><span>SOW</span>
+<select id="siteWorkPreset" name="workPreset" required="">
+<option value="">Pilih SOW</option>
+<option>SACME</option>
+<option>COLLOCATION</option>
+<option>PERKUATAN</option>
+<option value="__custom">Lainnya...</option>
+</select>
+<input class="hidden" id="siteWorkCustom" name="workCustom" placeholder="Masukkan SOW lain"/>
+</label>
+<label class="field"><span>No. SPMK</span><input name="spmkNo" placeholder="Nomor SPMK"/></label>
+<label class="field"><span>Tanggal SPMK</span><input name="spmkDate" type="date"/></label>
+<label class="field span2"><span>Koordinat</span><input name="coordinate" placeholder="-3.21954, 104.64992"/></label>
+<label class="field span2"><span>Alamat</span><textarea name="address" placeholder="Alamat site" rows="3"></textarea></label>
+<label class="field"><span>Status</span><select name="status"><option>Pending</option><option>In Progress</option><option>Completed</option><option>Blocked</option></select></label>
+<label class="field"><span>Target Otomatis</span><input disabled="" name="targetPreview" placeholder="Belum ada target"/></label>
+<div class="formactions span2"><button class="btn light" data-close="siteModal" type="button">Batal</button><button class="btn dark" type="submit">Simpan Data</button></div>
+</form>
+</div></div>
+<!-- Client Modal -->
+<div class="modalbg" id="clientModal"><div class="modal small">
+<div class="modalhead"><div><p class="eyebrow">MASTER DATA</p><h2>Tambah Client</h2></div><button class="close" data-close="clientModal"><span class="mi mi-close" aria-hidden="true"></span></button></div>
+<form class="formgrid" id="clientForm"><label class="field span2"><span>Nama Client</span><input name="name" placeholder="Contoh: Mitratel" required=""/></label><div class="formactions span2"><button class="btn light" data-close="clientModal" type="button">Batal</button><button class="btn dark">Simpan Client</button></div></form>
+</div></div>
+<!-- Target Modal -->
+<div class="modalbg" id="ruleModal"><div class="modal small">
+<div class="modalhead"><div><p class="eyebrow">PENGATURAN</p><h2>Target Pekerjaan</h2></div><button class="close" data-close="ruleModal"><span class="mi mi-close" aria-hidden="true"></span></button></div>
+<form class="formgrid" id="ruleForm">
+<label class="field"><span>Regional</span>
+<select id="ruleRegionPreset" name="regionPreset" required="">
+<option value="">Pilih Regional</option>
+<option>Sumbagsel</option>
+<option>Jawa Tengah</option>
+<option>Jawa Timur</option>
+<option value="__custom">Lainnya...</option>
+</select>
+<input class="hidden" id="ruleRegionCustom" name="regionCustom" placeholder="Masukkan regional lain"/>
+</label>
+<label class="field"><span>SOW</span>
+<select id="ruleWorkPreset" name="workPreset" required="">
+<option value="">Pilih SOW</option>
+<option>SACME</option>
+<option>COLLOCATION</option>
+<option>PERKUATAN</option>
+<option value="__custom">Lainnya...</option>
+</select>
+<input class="hidden" id="ruleWorkCustom" name="workCustom" placeholder="Masukkan SOW lain"/>
+</label>
+<div class="field span2" id="singleTargetWrap">
+<span>Target Hari</span>
+<input min="1" name="days" placeholder="Contoh: 21" type="number"/>
+</div>
+<div class="span2 hidden" id="sacmeTargetWrap">
+<div class="sacme-target-grid">
+<label class="field"><span>Target SITAC</span><input min="1" name="sitacDays" placeholder="Hari" type="number"/></label>
+<label class="field"><span>Target IMB</span><input min="1" name="imbDays" placeholder="Hari" type="number"/></label>
+<label class="field"><span>Target CME</span><input min="1" name="cmeDays" placeholder="Hari" type="number"/></label>
+</div>
+<div class="note" style="margin-top:8px;margin-bottom:0">SACME memakai target terpisah untuk SITAC, IMB, dan CME.</div>
+</div>
+<div class="formactions span2"><button class="btn light" data-close="ruleModal" type="button">Batal</button><button class="btn dark">Simpan Target</button></div>
+</form>
+</div></div>
+<!-- PLN Modal -->
+<div class="modalbg" id="plnModal"><div class="modal">
+<div class="modalhead"><div><p class="eyebrow">DATA FEATURE</p><h2>PLN</h2></div><button class="close" data-close="plnModal"><span class="mi mi-close" aria-hidden="true"></span></button></div>
+<form class="formgrid" id="plnForm">
+<label class="field"><span>Status PLN</span><select name="status"><option>Belum</option><option>Proses</option><option>Connect</option><option>Done</option><option>N/A</option></select></label>
+<label class="field"><span>Daya PLN</span><select name="power"><option value="">Pilih Daya</option><option>900 VA</option><option>1300 VA</option><option>2200 VA</option><option>3500 VA</option><option>4400 VA</option><option>5500 VA</option><option>6600 VA</option><option>7700 VA</option><option>10600 VA</option><option>13200 VA</option><option>16500 VA</option><option>23000 VA</option><option>33000 VA</option><option>41500 VA</option></select></label>
+<label class="field span2"><span>ID Pelanggan</span><input name="customerId" placeholder="ID Pelanggan PLN"/></label>
+<div class="field span2"><span>Checklist PLN</span><div class="plnchecks">
+<label class="checkcard"><input name="rfi" type="checkbox"/><span><b>RFI</b><small>RFI sudah lengkap</small></span></label>
+<label class="checkcard"><input name="ho" type="checkbox"/><span><b>HO</b><small>HO sudah lengkap</small></span></label>
+<label class="checkcard"><input name="completeness" type="checkbox"/><span><b>Kelengkapan PLN</b><small>Data/dokumen PLN lengkap</small></span></label>
+</div></div>
+<label class="field span2"><span>Catatan</span><textarea name="notes" placeholder="Catatan PLN" rows="3"></textarea></label>
+<div class="formactions span2" style="justify-content:space-between"><button class="btn light" id="sharePln" type="button">Share PLN</button><div><button class="btn light" data-close="plnModal" type="button">Batal</button> <button class="btn dark">Simpan PLN</button></div></div>
+</form>
+</div></div>
+<!-- Oneflux Modal -->
+<div class="modalbg" id="onefluxModal"><div class="modal">
+<div class="modalhead"><div><p class="eyebrow">CHECKLIST</p><h2>Oneflux</h2></div><button class="close" data-close="onefluxModal"><span class="mi mi-close" aria-hidden="true"></span></button></div>
+<div class="toolrow"><strong id="onefluxPct">0% Completed</strong><span class="muted" id="onefluxStateText">Belum</span></div>
+<div class="checklist" id="onefluxList"></div>
+<div class="empty" id="onefluxEmpty"><div><h3>Checklist belum tersedia</h3><p id="onefluxEmptyText">Checklist detail mengikuti SOW.</p></div></div>
+<div class="checklist-add"><input id="newChecklistTitle" placeholder="Nama dokumen / item checklist" aria-label="Item checklist baru"/><button class="btn light small" id="addChecklistItem" type="button"><span class="mi mi-add" aria-hidden="true"></span> Tambah item</button></div><div class="formactions"><button class="btn dark" id="saveOneflux">Simpan Oneflux</button></div>
+</div></div>
+<!-- BAST Modal -->
+<div class="modalbg" id="bastModal"><div class="modal small">
+<div class="modalhead"><div><p class="eyebrow">DOCUMENT FLOW</p><h2>BAST</h2></div><button class="close" data-close="bastModal"><span class="mi mi-close" aria-hidden="true"></span></button></div>
+<div class="toolrow"><strong id="bastPct">0% Completed</strong><span class="muted">BOQ → PO → BAUT → BAPWP → BAST → GR</span></div>
+<div class="checklist" id="bastList"></div>
+<div class="formactions"><button class="btn dark" id="saveBast">Simpan BAST</button></div>
+</div></div>
+<!-- Secure Auth Gate -->
+<div class="cloud-auth-gate show" id="cloudAuthGate">
+<div class="cloud-auth-card">
+<img alt="Trackers" class="cloud-auth-logo" id="cloudAuthLogo" src="assets/img/trackers-logo-dark.png?v=20260923.77"/>
+<p class="eyebrow">TRACKERS WORKSPACE PRIVATE</p>
+<h2>Masuk ke Trackers Workspace</h2>
+<p>Akses hanya untuk akun yang sudah diizinkan Admin.</p>
+<form class="cloud-login-form" id="emailLoginForm">
+<label class="field">
+<span>Email</span>
+<input autocomplete="username" id="loginEmail" placeholder="nama@perusahaan.com" required="" type="email"/>
+</label>
+<label class="field">
+<span>Password</span>
+<input autocomplete="current-password" id="loginPassword" placeholder="Password" required="" type="password"/>
+</label>
+<button class="btn dark cloud-google-btn" id="loginSubmitBtn" type="submit">Masuk</button>
+<div aria-live="polite" class="login-inline-status" id="loginInlineStatus" role="status"></div>
+</form>
+<button class="cloud-link-btn" id="forgotPasswordBtn" type="button">Lupa password?</button>
+<small id="cloudAuthHint">Tidak ada pendaftaran publik. Akun dibuat oleh Admin.</small>
+<small class="local-test-hint" id="localTestHint" style="display:none">Buka aplikasi melalui server lokal atau HTTPS. Login memerlukan koneksi internet.</small>
+</div>
+</div>
+<!-- Forgot Password Modal -->
+<div class="modalbg" id="forgotPasswordModal"><div class="modal small">
+<div class="modalhead">
+<div><p class="eyebrow">KEAMANAN AKUN</p><h2>Lupa Password</h2></div>
+<button class="close" data-close="forgotPasswordModal"><span class="mi mi-close" aria-hidden="true"></span></button>
+</div>
+<p class="muted auth-help-copy">Masukkan email akun. Jika akun tersedia, instruksi reset akan dikirim ke email tersebut.</p>
+<form class="formgrid" id="forgotPasswordForm">
+<label class="field span2"><span>Email</span><input autocomplete="email" id="forgotEmail" required="" type="email"/></label>
+<div class="formactions span2">
+<button class="btn light" data-close="forgotPasswordModal" type="button">Batal</button>
+<button class="btn dark">Kirim Instruksi</button>
+</div>
+</form>
+</div></div>
+<!-- Set New Password Modal -->
+<div class="modalbg" id="resetPasswordModal"><div class="modal small">
+<div class="modalhead"><div><p class="eyebrow">RESET PASSWORD</p><h2>Buat Password Baru</h2></div></div>
+<form class="formgrid" id="resetPasswordForm">
+<label class="field span2"><span>Password Baru</span><input autocomplete="new-password" id="newPassword" minlength="10" placeholder="Minimal 10 karakter" required="" type="password"/></label>
+<label class="field span2"><span>Ulangi Password</span><input autocomplete="new-password" id="confirmNewPassword" minlength="10" required="" type="password"/></label>
+<div class="formactions span2"><button class="btn dark">Simpan Password Baru</button></div>
+</form>
+</div></div>
+<!-- Access Denied Modal -->
+<div class="modalbg" id="accessDeniedModal"><div class="modal small">
+<div class="modalhead"><div><p class="eyebrow">AKSES DITOLAK</p><h2>Akun belum diizinkan</h2></div></div>
+<p class="muted auth-help-copy">Akun berhasil login, tetapi belum memiliki akses ke Trackers Workspace. Hubungi Admin.</p>
+<div class="formactions"><button class="btn dark" id="accessDeniedSignOut" type="button">Keluar</button></div>
+</div></div>
+<!-- Cloud Account Modal -->
+<div class="modalbg" id="cloudAccountModal"><div class="modal small">
+<div class="modalhead">
+<div><p class="eyebrow">AKUN</p><h2 id="cloudAccountTitle">Akun Trackers Workspace</h2></div>
+<button class="close" data-close="cloudAccountModal"><span class="mi mi-close" aria-hidden="true"></span></button>
+</div>
+<div class="cloud-account-panel"><div class="cloud-config-note">Data Trackers Workspace tersimpan otomatis ke cloud setelah kamu login.</div>
+<div class="cloud-user-card">
+<div class="cloud-avatar" id="cloudAvatar">T</div>
+<div><strong id="cloudUserName">Mode Lokal</strong><small id="cloudUserEmail">Belum login</small></div>
+</div>
+<div class="cloud-sync-card">
+<span>Status Data</span><strong id="cloudSyncStatus">Memuat...</strong>
+<small id="cloudSyncTime">Menyiapkan sinkronisasi...</small>
+</div>
+</div>
+<div class="formactions" style="justify-content:space-between">
+<button class="btn light" id="cloudSyncNow" type="button">Sinkronkan</button>
+<button class="btn dark" id="cloudSignOut" type="button">Keluar</button>
+</div>
+</div></div>
+<!-- First Sync Conflict Modal -->
+<div class="modalbg" id="cloudConflictModal"><div class="modal small">
+<div class="modalhead">
+<div><p class="eyebrow">SINKRONISASI DATA</p><h2>Pilih versi data</h2></div><button class="close" data-close="cloudConflictModal" type="button" aria-label="Tunda sinkronisasi"><span class="mi mi-close" aria-hidden="true"></span></button>
+</div>
+<p class="muted cloud-conflict-copy">Data perangkat dan cloud berbeda. Download backup sebelum memilih versi yang dipakai. Pilihan Anda akan mengganti versi lainnya.</p>
+<p class="muted">Belum yakin? Pilih Nanti atau tutup dialog. Sinkronisasi akan ditunda tanpa mengganti data perangkat maupun cloud.</p><button class="btn light" data-close="cloudConflictModal" type="button">Nanti — lanjut di perangkat ini</button>
+<button id="backupConflict" class="btn light" type="button">Download backup perangkat</button><div class="cloud-conflict-grid">
+<button class="cloud-choice-card" id="useLocalForCloud" type="button">
+<strong>Gunakan Data Lokal</strong><small>Upload data di perangkat ini ke cloud.</small>
+</button>
+<button class="cloud-choice-card" id="useCloudForLocal" type="button">
+<strong>Gunakan Data Cloud</strong><small>Download data cloud ke perangkat ini.</small>
+</button>
+</div>
+</div></div>
+
+<!-- Note Pad Modal -->
+<div class="modalbg" id="noteModal"><div class="modal note-modal">
+<div class="modalhead">
+<div><p class="eyebrow">NOTE PAD</p><h2 id="noteModalTitle">Catatan Baru</h2></div>
+<button class="close" data-close="noteModal"><span class="mi mi-close" aria-hidden="true"></span></button>
+</div>
+<form id="noteForm" class="note-form">
+<input id="noteId" type="hidden"/>
+<input id="noteTitle" class="note-title-input" maxlength="120" placeholder="Judul" autocomplete="off"/>
+<textarea id="noteBody" class="note-body-input" maxlength="10000" placeholder="Tulis catatan..." rows="10"></textarea>
+<div class="note-form-options">
+<label class="note-pin-check"><input id="notePinned" type="checkbox"/><span>Sematkan catatan</span></label>
+<div class="note-color-picker" aria-label="Warna catatan">
+<button class="note-color-dot selected" data-note-color="default" title="Default" type="button"></button>
+<button class="note-color-dot" data-note-color="lime" title="Lime" type="button"></button>
+<button class="note-color-dot" data-note-color="sand" title="Sand" type="button"></button>
+<button class="note-color-dot" data-note-color="blue" title="Blue" type="button"></button>
+<button class="note-color-dot" data-note-color="rose" title="Rose" type="button"></button>
+<button class="note-color-dot" data-note-color="violet" title="Violet" type="button"></button>
+</div>
+</div>
+<div class="formactions note-form-actions">
+<button class="btn light" data-close="noteModal" type="button">Batal</button>
+<button class="btn dark" id="saveNoteBtn" type="submit">Simpan Catatan</button>
+</div>
+</form>
+</div></div>
+
+<!-- Reset All Data Modal -->
+<div class="modalbg" id="resetAllDataModal"><div class="modal small reset-data-modal">
+<div class="modalhead">
+<div><p class="eyebrow">ZONA BERBAHAYA</p><h2>Reset Semua Data</h2></div>
+<button class="close" data-close="resetAllDataModal"><span class="mi mi-close" aria-hidden="true"></span></button>
+</div>
+<p class="muted reset-data-copy">Tindakan ini akan menghapus seluruh data Site, Client, Tenant, Target Pekerjaan, BAST, aktivitas, pin, Note Pad, serta seluruh data dan master PKBON. Akun/login dan tema tampilan tetap dipertahankan.</p>
+<div class="reset-data-warning"><strong>Tindakan tidak dapat dibatalkan.</strong><span>Jika terhubung ke Supabase, data cloud akun ini juga akan dikosongkan.</span></div>
+<label class="field"><span>Ketik <b>RESET</b> untuk melanjutkan</span><input id="resetAllDataConfirmText" autocomplete="off" placeholder="RESET"/></label>
+<div class="formactions">
+<button class="btn light" data-close="resetAllDataModal" type="button">Batal</button>
+<button class="btn reset-danger-btn" id="confirmResetAllData" type="button">Reset Semua Data</button>
+</div>
+</div></div>
+<div class="toast" id="toast"></div>
+
+<div class="modalbg" id="remindersModal"><div class="modal"><div class="modalhead"><h2>Pengingat</h2><button class="close" data-close="remindersModal" type="button" aria-label="Tutup pengingat"><span class="mi mi-close" aria-hidden="true"></span></button></div><section class="panel action-panel"><div class="panelhead"><div><p class="eyebrow">TINDAKAN HARI INI</p><h2>Prioritas pekerjaan</h2><p id="actionSummary"></p></div><div class="actions"><button class="btn light small" id="openAudit" type="button">Riwayat perubahan</button><button class="btn light small" id="refreshActions" type="button">Perbarui</button></div></div>
+<label class="field"><span>Tampilkan</span><select id="actionFilter"><option value="all">Semua tindakan</option><option value="task">Tenggat pekerjaan</option><option value="payment">Tagihan client</option><option value="pkbon">PKBON menunggu</option><option value="document">Dokumen belum selesai</option></select></label><div id="actionList" class="action-list"></div><small class="muted">Pengingat diperbarui saat aplikasi dibuka. Tidak mengirim notifikasi ketika aplikasi ditutup.</small></section></div></div>
+<div class="modalbg" id="auditModal"><div class="modal"><div class="modalhead"><h2>Riwayat perubahan</h2><button class="close" data-close="auditModal" type="button"><span class="mi mi-close" aria-hidden="true"></span></button></div><p id="auditStatus"></p><div class="actions"><input id="auditSearch" placeholder="Cari site, pelaku, atau perubahan" aria-label="Cari riwayat"/><button class="btn light small" id="auditRefresh" type="button">Muat dari server</button><button class="btn light small" id="auditMore" type="button">Muat lebih banyak</button></div><div id="auditList" class="audit-list"></div></div></div>
+<div class="modalbg" id="tasksModal"><div class="modal"><div class="modalhead"><div><p class="eyebrow">PROGRESS PEKERJAAN</p><h2>Kelola pekerjaan</h2></div><button class="close" data-close="tasksModal" type="button"><span class="mi mi-close" aria-hidden="true"></span></button></div><p class="muted">Progres dihitung dari jumlah pekerjaan selesai. Status project tetap dapat diatur melalui Edit Site.</p><p class="muted">Tanggal pekerjaan adalah jadwal pelaksanaan. Tenggat adalah batas selesai; pengingat muncul mulai H-3.</p><div id="taskEditor" class="task-editor"></div><div class="task-add-row"><label class="field task-title-field"><span>Pekerjaan baru</span><input id="newTaskTitle" placeholder="Contoh: Survey lokasi" aria-label="Pekerjaan baru"/></label><label class="field task-date-field"><span>Tanggal pekerjaan (opsional)</span><input id="newTaskDate" type="date" aria-label="Tanggal pekerjaan baru"/></label><label class="field task-date-field"><span>Tenggat (opsional)</span><input id="newTaskDueDate" type="date"/></label><button class="btn light" id="addTask" type="button"><span class="mi mi-add" aria-hidden="true"></span> Tambah</button></div><div class="formactions"><button class="btn light" data-close="tasksModal" type="button">Batal</button><button class="btn dark" id="saveTasks" type="button">Simpan pekerjaan</button></div></div></div>
+<div class="modalbg" id="backupWorkspaceModal"><div class="modal small"><div class="modalhead"><div><p class="eyebrow">DATA WORKSPACE</p><h2>Backup &amp; Restore</h2></div><button class="close" data-close="backupWorkspaceModal" type="button"><span class="mi mi-close" aria-hidden="true"></span></button></div><p>Backup memuat seluruh data kerja, pembayaran, master, catatan, dan gambar PKBON. Akun dan password tidak dimasukkan.</p><div class="backup-actions"><button class="btn dark" id="downloadWorkspaceBackup" type="button">Download backup lengkap</button><label class="btn light upload-button">Pulihkan dari backup<input id="restoreWorkspaceFile" type="file" accept=".json,application/json" hidden/></label></div><p class="muted">Restore mengganti data kerja di perangkat ini. Simpan backup terbaru sebelum memulihkan.</p></div></div>
+<div id="storageWarning" class="storage-warning" role="alert" hidden></div>
+<script defer src="assets/js/storage-guard.js?v=20260923.77"></script>
+<script defer src="assets/js/icons.js?v=20260923.77"></script>
+<script defer src="assets/js/core.js?v=20260923.77"></script>
+<script defer src="assets/js/operations-core.js?v=20260923.77"></script>
+<script defer src="assets/js/sheets.js?v=20260923.77"></script>
+
+<script defer src="assets/js/config.js?v=20260923.77"></script><script defer src="assets/js/cloud.js?v=20260923.77"></script><script defer src="assets/js/app.js?v=20260923.77"></script>
+<script defer src="assets/js/workspace.js?v=20260923.77"></script>
+<script defer src="assets/js/operations.js?v=20260923.77"></script>
+<script defer src="assets/js/boot.js?v=20260923.77"></script>
+</body>
+</html>

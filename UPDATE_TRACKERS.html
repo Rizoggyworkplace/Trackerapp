@@ -1,0 +1,21 @@
+<!doctype html><html lang="id"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Perbarui Trackers</title>
+<style>body{background:#18231c;color:#eef3e9;font:16px system-ui;margin:0;padding:32px}main{max-width:600px;margin:8vh auto;padding:28px;border:1px solid #485741;border-radius:20px}button{background:#b6ff4b;border:0;border-radius:10px;padding:14px 20px;font:inherit;font-weight:700;cursor:pointer}button:disabled{opacity:.5}p{line-height:1.65}a{color:#b6ff4b}</style>
+<main><h1>Perbarui Trackers Workspace</h1><p>Versi 7.7 menambahkan lima tema warna baru. Pilih melalui Settings → Tampilan. Jika sudah memakai v7.0, tidak perlu SQL baru. Migrasi 004 hanya diperlukan bila belum pernah dijalankan. Simpan form yang sedang diisi, lalu tutup tab Trackers lainnya sebelum melanjutkan.</p><p>Pembaruan ini tidak menghapus data proyek atau akun.</p><button id="update">Aktifkan versi 7.7</button><p id="status" role="status" aria-live="polite"></p><a id="open" href="./index.html?v=20260923.77" hidden>Buka Trackers</a></main>
+<script>
+const button=document.getElementById('update'),statusText=document.getElementById('status');
+function workerVersion(worker){return new Promise(resolve=>{if(!worker)return resolve('');const channel=new MessageChannel();const timer=setTimeout(()=>{channel.port1.close();resolve('');},2000);channel.port1.onmessage=e=>{clearTimeout(timer);channel.port1.close();resolve(e.data);};worker.postMessage({type:'GET_VERSION'},[channel.port2]);});}
+button.onclick=async()=>{button.disabled=true;try{
+ if(!('serviceWorker' in navigator)||location.protocol==='file:')throw new Error('Buka halaman ini lewat alamat server Trackers, bukan klik file HTML langsung. Jalankan START_TRACKERS.bat dahulu bila masih lokal.');
+ statusText.textContent='Mengunduh pembaruan…';
+ const reg=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});await reg.update();
+ const deadline=Date.now()+45000;
+ while(Date.now()<deadline){
+  if(reg.waiting){statusText.textContent='Mengaktifkan pembaruan…';reg.waiting.postMessage({type:'SKIP_WAITING'});}
+  if(!reg.installing&&!reg.waiting&&await workerVersion(reg.active)==='7.7'){
+   statusText.textContent='Versi 7.7 sudah aktif. Buka Trackers dan pastikan tulisan “Input nominal v7.7” muncul pada Harga & Pembayaran.';document.getElementById('open').hidden=false;return;
+  }
+  await new Promise(resolve=>setTimeout(resolve,300));
+ }
+ throw new Error('Versi 7.7 belum aktif. Pastikan seluruh isi paket perbaikan sudah ditimpa di folder aplikasi yang digunakan, koneksi aktif, lalu coba lagi.');
+ }catch(e){statusText.textContent=e.message;button.disabled=false;}};
+</script></html>
