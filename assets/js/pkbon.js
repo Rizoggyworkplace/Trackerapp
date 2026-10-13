@@ -20,7 +20,7 @@ const DEFAULTS={
   templates:[],
   officers:[]
 };
-let state={items:[],lampiranPengajuan:'',lampiranTransfer:'',lampiranBuktiBayar:'',currentId:null,bankSnapshot:null,pkbonAuto:false};
+let state={items:[],lampiranPengajuan:'',lampiranTransfer:'',lampiranBuktiBayar:'',currentId:null,driveDocId:null,bankSnapshot:null,pkbonAuto:false};
 function clone(x){return JSON.parse(JSON.stringify(x))}
 function loadJSON(k,f){try{const raw=localStorage.getItem(k);if(raw===null)return clone(f);const v=TrackersCore.decodeStored(raw);TrackersCore.validateSnapshot({trackly:{sites:[]},pkbon:{[k]:v}});return v;}catch{window.TRACKERS_CORRUPT_KEYS=[...(window.TRACKERS_CORRUPT_KEYS||[]),k];return clone(f)}}
 function notifyTracklyHistory(type='PKBON_CHANGED'){
@@ -173,7 +173,20 @@ function applySavedSite(){
 function setSig(img,src){if(src){img.src=src;img.classList.remove('empty')}else{img.removeAttribute('src');img.classList.add('empty')}}
 function renderAttachmentPreviews(){
   const map=[['previewPengajuan','lampiranPengajuan'],['previewTransfer','lampiranTransfer'],['previewBuktiBayar','lampiranBuktiBayar']];
-  map.forEach(([id,key])=>{const box=$('#'+id),src=lampiranUrl(state[key]);box.innerHTML=src?`<img src="${attr(src)}" alt="Preview lampiran">`:'<span>Belum ada gambar</span>';const button=$(`[data-remove-attachment="${key}"]`);if(button)button.disabled=!src});
+  map.forEach(([id,key])=>{
+    const box=$('#'+id),v=state[key],src=lampiranUrl(v),did=lampiranDriveId(v);
+    box.innerHTML=src?`<img src="${attr(src)}"${did?` data-drive-id="${attr(did)}"`:''} alt="Preview lampiran">`:'<span>Belum ada gambar</span>';
+    const img=box.querySelector('img[data-drive-id]');
+    if(img)img.addEventListener('error',function onErr(){img.removeEventListener('error',onErr);driveImgFallback(img);});
+    const button=$(`[data-remove-attachment="${key}"]`);if(button)button.disabled=!src;
+  });
+}
+// Fallback berlapis untuk <img> lampiran Drive: thumb -> thumbnail Drive -> blob via Drive API.
+function driveImgFallback(img){
+  const D=window.TrackersDrive;if(!D)return;
+  const id=img.getAttribute('data-drive-id');if(!id)return;
+  if(img.src.indexOf('data:')===0){img.src=D.driveThumbUrl(id,1000);return;}
+  if(D.driveIsConnected())D.driveFileBlobUrl(id).then(u=>{img.src=u;}).catch(()=>{});
 }
 function syncPreview(){
   const printSettings=state.documentSettings||settings;
@@ -183,7 +196,13 @@ function syncPreview(){
   $('#pvRows').innerHTML=rows.map((it,i)=>it?`<tr><td class="center">${i+1}</td><td>${esc(it.uraian)}</td><td class="center">${esc(it.sat)}</td><td class="center">${Number(it.vol)||0}</td><td class="money">${fmt(it.harga)}</td><td class="money">${fmt((Number(it.vol)||0)*(Number(it.harga)||0))}</td><td>${esc(it.keterangan)}</td></tr>`:'<tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('');
   const gt=total();$('#pvGrandTotal').textContent=fmt(gt);$('#grandTotalLabel').textContent='Grand Total: '+fmt(gt);$('#pvTerbilang').textContent=terbilang(gt);$('#pvBankNama').textContent=b.nama||'';$('#pvBankRek').textContent=b.rekening||'';$('#pvBank').textContent=b.bank||'';const tglValue=$('#tanggal').value;const hari=dayNameID(tglValue);$('#pvKotaTanggal').textContent=`${hari?hari+', ':''}${longDateID(tglValue)}`;
   [1,2,3,4].forEach(n=>{const o=state.documentOfficers?.[n-1]||officerById(settings.approvalIds['a'+n]);$('#pvAppr'+n+'Name').textContent=o?.name||'';$('#pvAppr'+n+'Role').textContent=o?.role||'';setSig($('#pvSig'+n),o?.signature||'')});
-  const p2=$('#page2'),p3=$('#page3');setSig($('#pvLampiranPengajuan'),lampiranUrl(state.lampiranPengajuan));setSig($('#pvLampiranTransfer'),lampiranUrl(state.lampiranTransfer));setSig($('#pvLampiranBuktiBayar'),lampiranUrl(state.lampiranBuktiBayar));p2.classList.toggle('hidden-print',!state.lampiranPengajuan&&!state.lampiranTransfer);p3.classList.toggle('hidden-print',!state.lampiranBuktiBayar);renderAttachmentPreviews();
+  const p2=$('#page2'),p3=$('#page3');setLampiranPrint($('#pvLampiranPengajuan'),state.lampiranPengajuan);setLampiranPrint($('#pvLampiranTransfer'),state.lampiranTransfer);setLampiranPrint($('#pvLampiranBuktiBayar'),state.lampiranBuktiBayar);p2.classList.toggle('hidden-print',!state.lampiranPengajuan&&!state.lampiranTransfer);p3.classList.toggle('hidden-print',!state.lampiranBuktiBayar);renderAttachmentPreviews();
+}
+// Gambar lampiran untuk area cetak: pakai URL resolusi penuh (bukan thumb mungil).
+function setLampiranPrint(img,v){
+  setSig(img,lampiranFullUrl(v));
+  const did=lampiranDriveId(v);
+  if(did)img.setAttribute('data-drive-id',did);else img.removeAttribute('data-drive-id');
 }
 
 function collect(){rememberSite(false);const b=selectedBank()||{};const match=sites.filter(x=>x.name.toLowerCase()===currentSite().toLowerCase()&&x.projectId.toLowerCase()===currentProjectId().toLowerCase());return{workspaceSiteId:state.workspaceSiteId||(match.length===1?match[0].workspaceSiteId||'':''),id:state.currentId||uid('pkbon'),pkbonNo:$('#pkbonNo').value.trim(),tanggal:$('#tanggal').value,status:$('#status').value||'Draft',nomorForm:state.documentFormNumber||currentFormNumber(),documentSettings:clone(state.documentSettings||settings),documentOfficers:clone(state.documentOfficers||[1,2,3,4].map(n=>officerById(settings.approvalIds['a'+n]))),site:currentSite(),projectId:$('#projectId').value.trim(),pekerjaan:$('#pekerjaan').value.trim(),keteranganUmum:$('#keteranganUmum').value.trim(),bank:clone(b),items:clone(state.items),lampiranPengajuan:state.lampiranPengajuan,lampiranTransfer:state.lampiranTransfer,lampiranBuktiBayar:state.lampiranBuktiBayar,total:total(),savedAt:new Date().toISOString()}}
@@ -198,7 +217,7 @@ function saveCurrent(){
   if(!saveJSON('pkbon_history',history))return;state.currentId=d.id;state.bankSnapshot=clone(d.bank);state.pkbonAuto=false;renderHistory();renderRekapFilters();renderRekap();renderDashboard();toast('PKBON tersimpan');
 }
 function newDoc(){
-  state={items:[],lampiranPengajuan:'',lampiranTransfer:'',lampiranBuktiBayar:'',currentId:null,bankSnapshot:null,pkbonAuto:false};
+  state={items:[],lampiranPengajuan:'',lampiranTransfer:'',lampiranBuktiBayar:'',currentId:null,driveDocId:null,bankSnapshot:null,pkbonAuto:false};
   $('#status').value='Draft';
   $('#tanggal').value=today();
   $('#siteInput').value='';
@@ -318,27 +337,38 @@ function renderDashboard(){
 function imageToDataURL(file,maxW=1600,maxH=1600,type='image/jpeg',quality=.86){return new Promise((resolve,reject)=>{const fr=new FileReader();fr.onerror=reject;fr.onload=()=>{const img=new Image();img.onerror=reject;img.onload=()=>{let w=img.width,h=img.height,scale=Math.min(1,maxW/w,maxH/h);w=Math.max(1,Math.round(w*scale));h=Math.max(1,Math.round(h*scale));const c=document.createElement('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d');ctx.drawImage(img,0,0,w,h);resolve(c.toDataURL(type,quality))};img.src=fr.result};fr.readAsDataURL(file)})}
 async function readAttachment(input,key){const f=input.files[0];if(!f)return;if(!/^image\/(png|jpeg|webp)$/.test(f.type)||f.size>15*1024*1024)return toast('Gunakan JPG, PNG, atau WebP maksimal 15 MB.');try{const dataUrl=await imageToDataURL(f,1800,1800,'image/jpeg',.84);state[key]=dataUrl;syncPreview();uploadLampiranDrive(key,dataUrl);toast('Lampiran dimuat')}catch{toast('Gagal membaca gambar')}}
 // ---- Google Drive: lampiran foto disimpan sebagai referensi, bukan base64 ----
+// Keputusan Oggy: file di Drive DIBIARKAN sebagai arsip saat lampiran dihapus
+// di aplikasi — modul Drive memang tidak menyediakan fungsi hapus file.
 const LAMPIRAN_KEYS=['lampiranPengajuan','lampiranTransfer','lampiranBuktiBayar'];
 function lampiranUrl(v){const D=window.TrackersDrive;if(D&&D.isDriveRef(v))return D.driveRefUrl(v);return v||'';}
+function lampiranFullUrl(v){const D=window.TrackersDrive;if(D&&D.isDriveRef(v))return D.driveFullUrl(v);return v||'';}
+function lampiranDriveId(v){const D=window.TrackersDrive;return (D&&D.isDriveRef(v))?v.driveId:'';}
+function driveJenis(key){const j=String(key||'').replace(/^lampiran/,'');return j.charAt(0).toLowerCase()+j.slice(1);}
+function driveDocId(){return state.currentId||(state.driveDocId=state.driveDocId||uid('pkbon'));}
+// Nama file di Drive: {docId}_{jenis}_{yyyymmdd-hhmm}.jpg (flat, satu folder).
 function driveFileName(key){
-  const no=(state.pkbonNo||($('#pkbonNo')&&$('#pkbonNo').value)||'draft').replace(/[^\w-]+/g,'_');
-  return 'PKBON-'+no+'-'+key+'.jpg';
+  const D=window.TrackersDrive;
+  if(D&&D.driveBuildFilename)return D.driveBuildFilename(driveDocId(),driveJenis(key),new Date());
+  return driveDocId()+'_'+driveJenis(key)+'.jpg';
 }
 function uploadLampiranDrive(key,dataUrl){
   const D=window.TrackersDrive;
   if(!D||!D.driveReady())return; // Drive belum dikonfigurasi -> tetap base64 lokal
   const filename=driveFileName(key);
-  if(D.driveIsConnected()&&navigator.onLine!==false){
-    D.driveUpload(dataUrl,filename).then(meta=>{
-      if(state[key]===dataUrl){state[key]=D.makeRef(meta,dataUrl);syncPreview();}
-      // kalau user sudah ganti gambar saat upload: file jadi arsip di Drive (by design)
-    }).catch(()=>{
-      D.driveQueueAdd(key,dataUrl,filename);
-      toast('Upload Drive gagal — foto diantrekan');
-    });
-  }else{
-    D.driveQueueAdd(key,dataUrl,filename);
-  }
+  // Buat thumbnail mungil (~160px) untuk preview offline; yang di-upload tetap file penuh.
+  D.driveMakeThumb(dataUrl,160).then(thumb=>{
+    if(D.driveIsConnected()&&navigator.onLine!==false){
+      D.driveUpload(dataUrl,filename).then(meta=>{
+        if(state[key]===dataUrl){state[key]=D.makeRef(meta,thumb);syncPreview();}
+        // kalau user sudah ganti gambar saat upload: file jadi arsip di Drive (by design)
+      }).catch(()=>{
+        D.driveQueueAdd(key,dataUrl,filename,thumb);
+        toast('Upload Drive gagal — foto diantrekan');
+      });
+    }else{
+      D.driveQueueAdd(key,dataUrl,filename,thumb);
+    }
+  });
 }
 // Proses antrean upload; cocokkan via dataUrl ke draft & riwayat.
 function processDriveQueue(){
@@ -448,6 +478,21 @@ async function performPrint(){
   rememberSite(false);
   syncPreview();
 
+  // Resolve lampiran Drive ke gambar resolusi penuh sebelum cetak:
+  // blob via Drive API kalau sedang terhubung, else URL thumbnail Drive.
+  const D=window.TrackersDrive;
+  const driveImgs=[...root.querySelectorAll('#printArea img[data-drive-id]')];
+  if(D&&driveImgs.length){
+    if(D.driveIsConnected()&&navigator.onLine!==false){
+      await Promise.all(driveImgs.map(img=>{
+        const id=img.getAttribute('data-drive-id');
+        return D.driveFileBlobUrl(id).then(u=>{img.src=u;}).catch(()=>{img.src=D.driveThumbUrl(id,1600);});
+      }));
+    }else{
+      driveImgs.forEach(img=>{img.src=D.driveThumbUrl(img.getAttribute('data-drive-id'),1600);});
+    }
+  }
+
   const old=document.title;
   const firstUraian=state.items.find(x=>String(x?.uraian||'').trim())?.uraian||'';
   const keterangan=$('#keteranganUmum').value.trim();
@@ -510,7 +555,7 @@ $('#tanggal').oninput=()=>{refreshAutoNoForDate();syncPreview()};
 $('#siteInput').oninput=()=>{state.workspaceSiteId='';syncPreview();};$('#siteInput').onchange=()=>{applySavedSite();rememberSite(true);syncPreview()};$('#siteInput').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();e.target.blur()}};
 $('#bankSelect').onchange=()=>{state.bankSnapshot=null;syncPreview()};$('#projectId').oninput=()=>{state.workspaceSiteId='';syncPreview();};$('#projectId').onchange=()=>rememberSite(true);['pekerjaan','keteranganUmum'].forEach(id=>$('#'+id).oninput=syncPreview);
 $('#lampiranPengajuan').onchange=e=>readAttachment(e.target,'lampiranPengajuan');$('#lampiranTransfer').onchange=e=>readAttachment(e.target,'lampiranTransfer');$('#lampiranBuktiBayar').onchange=e=>readAttachment(e.target,'lampiranBuktiBayar');
-$$('[data-remove-attachment]').forEach(b=>b.onclick=()=>{const key=b.dataset.removeAttachment;state[key]='';const input=$('#'+key);if(input)input.value='';syncPreview();toast('Lampiran dihapus')});
+$$('[data-remove-attachment]').forEach(b=>b.onclick=()=>{const key=b.dataset.removeAttachment;state[key]='';const input=$('#'+key);if(input)input.value='';syncPreview();toast('Lampiran dihapus — file di Drive tetap tersimpan sebagai arsip')});
 $('#historySearch').oninput=renderHistory;$('#historyStatusFilter').onchange=renderHistory;
 $('#addBank').onclick=()=>{const x={nama:$('#mBankNama').value.trim(),rekening:$('#mBankRek').value.trim(),bank:$('#mBank').value.trim()};if(!x.nama)return toast('Nama penerima wajib diisi');banks.push(x);saveJSON('pkbon_banks',banks);['mBankNama','mBankRek','mBank'].forEach(id=>$('#'+id).value='');renderMasters();toast('Bank ditambahkan')};
 $('#addTemplate').onclick=()=>{const name=$('#mTemplateName').value.trim(),uraian=$('#mTemplateUraian').value.trim(),sat=$('#mTemplateSat').value.trim()||'Ls';if(!name||!uraian)return toast('Nama dan uraian template wajib diisi');templates.push({id:uid('tpl'),name,uraian,sat,keterangan:''});saveJSON('pkbon_templates',templates);['mTemplateName','mTemplateUraian'].forEach(id=>$('#'+id).value='');$('#mTemplateSat').value='Ls';renderMasters();toast('Template ditambahkan')};
@@ -522,6 +567,7 @@ $('#cancelPrint').onclick=()=>$('#validationModal').classList.remove('open');$('
 
 renderMasters();renderSettings();renderHistory();renderRekapFilters();renderRekap();newDoc();renderDashboard();showTab('dashboardTab');
 setTimeout(processDriveQueue,2000); // coba kirim antrean foto Drive yang tertunda
+if(typeof window!=='undefined')window.trackersProcessDriveQueue=processDriveQueue; // dipanggil Pengaturan setelah login Google
 
 
 /* ===== TRACKLY INTEGRATION ===== */
