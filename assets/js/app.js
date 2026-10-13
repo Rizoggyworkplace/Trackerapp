@@ -818,7 +818,31 @@ function renderSettings(){
   const t=THEMES[state.theme]||THEMES.default;
   $("themeSettingSubtitle").textContent=t.name;
   $("themeDot1").style.background=t.tone1;$("themeDot2").style.background=t.tone2;
-    renderThemeChoices();renderClientSettingsList();renderTenantSettingsList();renderTargetSettingsList()
+    renderThemeChoices();renderClientSettingsList();renderTenantSettingsList();renderTargetSettingsList();
+    renderDriveSettings();
+}
+// Google Drive (lampiran foto PKBON)
+function renderDriveSettings(){
+  var D=window.TrackersDrive;
+  var st=$('driveStatus'),btnC=$('btnDriveConnect'),btnD=$('btnDriveDisconnect');
+  if(!st||!btnC||!btnD)return;
+  if(!D){st.textContent='Modul Drive belum dimuat.';return;}
+  if(!D.driveReady()){st.textContent='Belum dikonfigurasi (butuh Client ID Google).';btnC.hidden=true;btnD.hidden=true;return;}
+  var n=D.driveQueueCount();
+  if(D.driveIsConnected()){
+    st.textContent='Terhubung.'+(n?(' '+n+' foto menunggu upload.'): '');
+    btnC.hidden=true;btnD.hidden=false;
+  }else{
+    st.textContent='Belum terhubung.'+(n?(' '+n+' foto menunggu upload — hubungkan untuk mengunggah.'): '');
+    btnC.hidden=false;btnD.hidden=true;
+  }
+  btnC.onclick=function(){
+    btnC.disabled=true;
+    D.driveSignIn().then(function(){renderDriveSettings();if(typeof processDriveQueue==='function')processDriveQueue();toast('Google Drive terhubung');})
+      .catch(function(e){toast(e.message||'Gagal menghubungkan Drive')})
+      .then(function(){btnC.disabled=false;});
+  };
+  btnD.onclick=function(){D.driveSignOut();renderDriveSettings();toast('Google Drive diputus');};
 }
 function populateClient(){
   const sel=$("clientSelect"),cur=sel.value;sel.innerHTML='<option value="">Pilih Client</option>'+state.clients.map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join("");if([...sel.options].some(o=>o.value===cur))sel.value=cur
