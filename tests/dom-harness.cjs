@@ -87,7 +87,7 @@ function makeHarness(initial={},opts={}){
  };
  context.window=context;vm.createContext(context);
  const run=code=>vm.runInContext(code,context);
- for(const file of ['storage-guard','icons','core','operations-core','sheets','config','cloud','pkbon','app','workspace','operations','boot'])vm.runInContext(fs.readFileSync(path.join(rootPath,'assets/js/'+file+'.js'),'utf8'),context,{filename:file+'.js'});
+ for(const file of ['storage-guard','icons','core','operations-core','sheets','config','cloud','drive','pkbon','app','workspace','operations','boot'])vm.runInContext(fs.readFileSync(path.join(rootPath,'assets/js/'+file+'.js'),'utf8'),context,{filename:file+'.js'});
  const flush=async()=>{for(let loop=0;loop<12;loop++){await Promise.resolve();const pending=[...timers].filter(([,v])=>v.ms<100);if(!pending.length){await Promise.resolve();continue;}for(const [id,v]of pending){timers.delete(id);await v.fn();}}};
  return {context,document,run,flush,alerts,requests,client,setCloudRow:r=>{cloudRow=r},getCloudRow:()=>cloudRow,el:id=>document.getElementById(id),fire:(id,type='click')=>document.getElementById(id).dispatchEvent({type}),Storage};
 }
