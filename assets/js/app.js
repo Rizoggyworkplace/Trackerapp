@@ -320,7 +320,7 @@ function site(id){return state.sites.find(s=>s.id===id)}
 
 let pkbonModuleReady=false;
 let pkbonModuleLoading=false;
-const PKBON_MODULE_VERSION='20261013.78';
+const PKBON_MODULE_VERSION='20261013.80';
 let pendingPkbonCommands=[];
 let pkbonHistoryCache=null;
 function currentPkbonTheme(){
@@ -827,10 +827,12 @@ function renderDriveSettings(){
   var st=$('driveStatus'),btnC=$('btnDriveConnect'),btnD=$('btnDriveDisconnect');
   if(!st||!btnC||!btnD)return;
   if(!D){st.textContent='Modul Drive belum dimuat.';return;}
-  if(!D.driveReady()){st.textContent='Belum dikonfigurasi (butuh Client ID Google).';btnC.hidden=true;btnD.hidden=true;return;}
+  if(!D.driveReady()){st.textContent='Belum dikonfigurasi: Google Client ID belum diisi di config.js. Oggy perlu membuatnya sekali di Google Cloud Console (OAuth Client ID tipe Web, origin https://rizoggyworkplace.github.io) lalu menempelkannya ke config.';btnC.hidden=true;btnD.hidden=true;return;}
   var n=D.driveQueueCount();
+  var prof=D.driveProfile?D.driveProfile():null;
+  var who=prof&&(prof.name||prof.email)?' sebagai '+(prof.name||prof.email):'';
   if(D.driveIsConnected()){
-    st.textContent='Terhubung.'+(n?(' '+n+' foto menunggu upload.'): '');
+    st.textContent='Terhubung'+who+'.'+(n?(' '+n+' foto menunggu upload.'): '');
     btnC.hidden=true;btnD.hidden=false;
   }else{
     st.textContent='Belum terhubung.'+(n?(' '+n+' foto menunggu upload — hubungkan untuk mengunggah.'): '');
@@ -838,7 +840,13 @@ function renderDriveSettings(){
   }
   btnC.onclick=function(){
     btnC.disabled=true;
-    D.driveSignIn().then(function(){renderDriveSettings();if(typeof processDriveQueue==='function')processDriveQueue();toast('Google Drive terhubung');})
+    D.driveSignIn()
+      .then(function(){return D.driveFetchProfile?D.driveFetchProfile().catch(function(){}):null;})
+      .then(function(){
+        renderDriveSettings();
+        if(typeof window.trackersProcessDriveQueue==='function')window.trackersProcessDriveQueue();
+        toast('Google Drive terhubung');
+      })
       .catch(function(e){toast(e.message||'Gagal menghubungkan Drive')})
       .then(function(){btnC.disabled=false;});
   };
