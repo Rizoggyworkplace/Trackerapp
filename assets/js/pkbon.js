@@ -173,7 +173,7 @@ function applySavedSite(){
 function setSig(img,src){if(src){img.src=src;img.classList.remove('empty')}else{img.removeAttribute('src');img.classList.add('empty')}}
 function renderAttachmentPreviews(){
   const map=[['previewPengajuan','lampiranPengajuan'],['previewTransfer','lampiranTransfer'],['previewBuktiBayar','lampiranBuktiBayar']];
-  map.forEach(([id,key])=>{const box=$('#'+id),src=state[key];box.innerHTML=src?`<img src="${attr(src)}" alt="Preview lampiran">`:'<span>Belum ada gambar</span>';const button=$(`[data-remove-attachment="${key}"]`);if(button)button.disabled=!src});
+  map.forEach(([id,key])=>{const box=$('#'+id),src=lampiranUrl(state[key]);box.innerHTML=src?`<img src="${attr(src)}" alt="Preview lampiran">`:'<span>Belum ada gambar</span>';const button=$(`[data-remove-attachment="${key}"]`);if(button)button.disabled=!src});
 }
 function syncPreview(){
   const printSettings=state.documentSettings||settings;
@@ -183,7 +183,7 @@ function syncPreview(){
   $('#pvRows').innerHTML=rows.map((it,i)=>it?`<tr><td class="center">${i+1}</td><td>${esc(it.uraian)}</td><td class="center">${esc(it.sat)}</td><td class="center">${Number(it.vol)||0}</td><td class="money">${fmt(it.harga)}</td><td class="money">${fmt((Number(it.vol)||0)*(Number(it.harga)||0))}</td><td>${esc(it.keterangan)}</td></tr>`:'<tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('');
   const gt=total();$('#pvGrandTotal').textContent=fmt(gt);$('#grandTotalLabel').textContent='Grand Total: '+fmt(gt);$('#pvTerbilang').textContent=terbilang(gt);$('#pvBankNama').textContent=b.nama||'';$('#pvBankRek').textContent=b.rekening||'';$('#pvBank').textContent=b.bank||'';const tglValue=$('#tanggal').value;const hari=dayNameID(tglValue);$('#pvKotaTanggal').textContent=`${hari?hari+', ':''}${longDateID(tglValue)}`;
   [1,2,3,4].forEach(n=>{const o=state.documentOfficers?.[n-1]||officerById(settings.approvalIds['a'+n]);$('#pvAppr'+n+'Name').textContent=o?.name||'';$('#pvAppr'+n+'Role').textContent=o?.role||'';setSig($('#pvSig'+n),o?.signature||'')});
-  const p2=$('#page2'),p3=$('#page3');setSig($('#pvLampiranPengajuan'),state.lampiranPengajuan||'');setSig($('#pvLampiranTransfer'),state.lampiranTransfer||'');setSig($('#pvLampiranBuktiBayar'),state.lampiranBuktiBayar||'');p2.classList.toggle('hidden-print',!state.lampiranPengajuan&&!state.lampiranTransfer);p3.classList.toggle('hidden-print',!state.lampiranBuktiBayar);renderAttachmentPreviews();
+  const p2=$('#page2'),p3=$('#page3');setSig($('#pvLampiranPengajuan'),lampiranUrl(state.lampiranPengajuan));setSig($('#pvLampiranTransfer'),lampiranUrl(state.lampiranTransfer));setSig($('#pvLampiranBuktiBayar'),lampiranUrl(state.lampiranBuktiBayar));p2.classList.toggle('hidden-print',!state.lampiranPengajuan&&!state.lampiranTransfer);p3.classList.toggle('hidden-print',!state.lampiranBuktiBayar);renderAttachmentPreviews();
 }
 
 function collect(){rememberSite(false);const b=selectedBank()||{};const match=sites.filter(x=>x.name.toLowerCase()===currentSite().toLowerCase()&&x.projectId.toLowerCase()===currentProjectId().toLowerCase());return{workspaceSiteId:state.workspaceSiteId||(match.length===1?match[0].workspaceSiteId||'':''),id:state.currentId||uid('pkbon'),pkbonNo:$('#pkbonNo').value.trim(),tanggal:$('#tanggal').value,status:$('#status').value||'Draft',nomorForm:state.documentFormNumber||currentFormNumber(),documentSettings:clone(state.documentSettings||settings),documentOfficers:clone(state.documentOfficers||[1,2,3,4].map(n=>officerById(settings.approvalIds['a'+n]))),site:currentSite(),projectId:$('#projectId').value.trim(),pekerjaan:$('#pekerjaan').value.trim(),keteranganUmum:$('#keteranganUmum').value.trim(),bank:clone(b),items:clone(state.items),lampiranPengajuan:state.lampiranPengajuan,lampiranTransfer:state.lampiranTransfer,lampiranBuktiBayar:state.lampiranBuktiBayar,total:total(),savedAt:new Date().toISOString()}}
@@ -316,7 +316,46 @@ function renderDashboard(){
 }
 
 function imageToDataURL(file,maxW=1600,maxH=1600,type='image/jpeg',quality=.86){return new Promise((resolve,reject)=>{const fr=new FileReader();fr.onerror=reject;fr.onload=()=>{const img=new Image();img.onerror=reject;img.onload=()=>{let w=img.width,h=img.height,scale=Math.min(1,maxW/w,maxH/h);w=Math.max(1,Math.round(w*scale));h=Math.max(1,Math.round(h*scale));const c=document.createElement('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d');ctx.drawImage(img,0,0,w,h);resolve(c.toDataURL(type,quality))};img.src=fr.result};fr.readAsDataURL(file)})}
-async function readAttachment(input,key){const f=input.files[0];if(!f)return;if(!/^image\/(png|jpeg|webp)$/.test(f.type)||f.size>15*1024*1024)return toast('Gunakan JPG, PNG, atau WebP maksimal 15 MB.');try{state[key]=await imageToDataURL(f,1800,1800,'image/jpeg',.84);syncPreview();toast('Lampiran dimuat')}catch{toast('Gagal membaca gambar')}}
+async function readAttachment(input,key){const f=input.files[0];if(!f)return;if(!/^image\/(png|jpeg|webp)$/.test(f.type)||f.size>15*1024*1024)return toast('Gunakan JPG, PNG, atau WebP maksimal 15 MB.');try{const dataUrl=await imageToDataURL(f,1800,1800,'image/jpeg',.84);state[key]=dataUrl;syncPreview();uploadLampiranDrive(key,dataUrl);toast('Lampiran dimuat')}catch{toast('Gagal membaca gambar')}}
+// ---- Google Drive: lampiran foto disimpan sebagai referensi, bukan base64 ----
+const LAMPIRAN_KEYS=['lampiranPengajuan','lampiranTransfer','lampiranBuktiBayar'];
+function lampiranUrl(v){const D=window.TrackersDrive;if(D&&D.isDriveRef(v))return D.driveRefUrl(v);return v||'';}
+function driveFileName(key){
+  const no=(state.pkbonNo||($('#pkbonNo')&&$('#pkbonNo').value)||'draft').replace(/[^\w-]+/g,'_');
+  return 'PKBON-'+no+'-'+key+'.jpg';
+}
+function uploadLampiranDrive(key,dataUrl){
+  const D=window.TrackersDrive;
+  if(!D||!D.driveReady())return; // Drive belum dikonfigurasi -> tetap base64 lokal
+  const filename=driveFileName(key);
+  if(D.driveIsConnected()&&navigator.onLine!==false){
+    D.driveUpload(dataUrl,filename).then(meta=>{
+      if(state[key]===dataUrl){state[key]=D.makeRef(meta,dataUrl);syncPreview();}
+      // kalau user sudah ganti gambar saat upload: file jadi arsip di Drive (by design)
+    }).catch(()=>{
+      D.driveQueueAdd(key,dataUrl,filename);
+      toast('Upload Drive gagal — foto diantrekan');
+    });
+  }else{
+    D.driveQueueAdd(key,dataUrl,filename);
+  }
+}
+// Proses antrean upload; cocokkan via dataUrl ke draft & riwayat.
+function processDriveQueue(){
+  const D=window.TrackersDrive;
+  if(!D||!D.driveReady()||!D.driveIsConnected()||navigator.onLine===false)return;
+  D.driveProcessQueue((key,ref,dataUrl)=>{
+    let touched=false;
+    if(state&&state[key]===dataUrl){state[key]=ref;touched=true;}
+    let histTouched=false;
+    history.forEach(d=>{if(d&&d[key]===dataUrl){d[key]=ref;histTouched=true;}});
+    if(histTouched)saveJSON('pkbon_history',history);
+    if(touched||histTouched){syncPreview();renderHistory();}
+  }).then(r=>{if(r.done)toast(r.done+' foto ter-upload ke Drive');});
+}
+if(typeof window!=='undefined'&&window.addEventListener){
+  window.addEventListener('online',()=>setTimeout(processDriveQueue,1500));
+}
 
 function downloadBlob(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
 function backupData(){const data={app:'PKBON',version:'5.0',exportedAt:new Date().toISOString(),settings,sites,banks,templates,officers,history};const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});downloadBlob(blob,'PKBON_Backup_'+today()+'.json');toast('Backup berhasil dibuat')}
@@ -482,6 +521,7 @@ $('#btnBackup').onclick=backupData;$('#restoreFile').onchange=e=>{const f=e.targ
 $('#cancelPrint').onclick=()=>$('#validationModal').classList.remove('open');$('#forcePrint').onclick=()=>{$('#validationModal').classList.remove('open');performPrint()};$('#validationModal').onclick=e=>{if(e.target.id==='validationModal')e.currentTarget.classList.remove('open')};
 
 renderMasters();renderSettings();renderHistory();renderRekapFilters();renderRekap();newDoc();renderDashboard();showTab('dashboardTab');
+setTimeout(processDriveQueue,2000); // coba kirim antrean foto Drive yang tertunda
 
 
 /* ===== TRACKLY INTEGRATION ===== */
