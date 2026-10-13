@@ -2,7 +2,7 @@
 const CACHE_PREFIX='trackers:'+new URL(self.registration.scope).pathname+':';
 const CACHE_NAME=CACHE_PREFIX+'v7.7';
 const APP_SHELL=['./','./index.html','./manifest.webmanifest','./assets/css/workspace.css',
- './assets/js/storage-guard.js','./assets/js/operations-core.js','./assets/js/operations.js','./assets/js/core.js','./assets/js/sheets.js','./assets/js/config.js','./assets/js/cloud.js','./assets/js/app.js','./assets/js/workspace.js','./assets/js/boot.js',
+ './assets/js/storage-guard.js','./assets/js/operations-core.js','./assets/js/operations.js','./assets/js/core.js','./assets/js/sheets.js','./assets/js/config.js','./assets/js/cloud.js','./assets/js/drive.js','./assets/js/app.js','./assets/js/workspace.js','./assets/js/boot.js',
  ...['trackers-logo-dark','icon-192','icon-512','icon-maskable-512'].map(n=>'./assets/img/'+n+'.png')];
 APP_SHELL.push('./assets/js/icons.js','./assets/css/material-icons.css',...["dashboard", "folder", "description", "receipt_long", "bar_chart", "settings", "account_circle", "search", "edit_note", "calendar_clock", "notifications", "bolt", "checklist", "payments", "add", "close", "check", "arrow_outward", "chevron_right", "upload", "download", "keep", "list_alt", "note_add", "sticky_note_2", "sync", "delete", "edit", "share", "archive", "unarchive", "print", "table_view", "history", "refresh", "save", "group", "palette", "cloud_download", "install_desktop", "apartment", "person", "flag"].map(n=>'./assets/icons/material/'+n+'.svg'));
 const VERSIONED_SHELL=APP_SHELL.map(p=>p==='./'||p==='./index.html'||p.includes('/icons/material/')?p:p+'?v=20261013.78');
