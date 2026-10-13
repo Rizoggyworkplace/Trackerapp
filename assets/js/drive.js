@@ -1,9 +1,20 @@
 /* Trackers Workspace — Google Drive module (lampiran foto PKBON).
- * Auth via Google Identity Services (OAuth 2.0, scope drive.file).
- * Foto di-upload ke folder Drive milik Oggy; di data aplikasi hanya
- * disimpan objek referensi {v:1, driveId, name, mime, thumb, uploadedAt}.
- * Lampiran lama (base64) tetap didukung — backward compatible.
+ *
+ * Auth via Google Identity Services (OAuth 2.0 token flow, scope drive.file —
+ * minimal: hanya file yang dibuat aplikasi ini yang bisa diakses).
+ * Tiap anggota tim login Google sekali via "Hubungkan Google Drive" di
+ * Pengaturan; token disimpan di browser (localStorage) dan diperbarui diam-diam
+ * oleh GIS selama sesi masih valid.
+ *
+ * Foto di-upload ke folder Drive milik Oggy (ID di-hardcode di config.js);
+ * di data aplikasi hanya disimpan objek referensi:
+ *   {v:1, driveId, name, mime, thumb, uploadedAt}
+ * dengan thumb = thumbnail mungil ~160px (base64) untuk preview offline.
+ * Lampiran lama (string base64) tetap didukung — backward compatible.
  * Tanda tangan pejabat TIDAK lewat sini (tetap base64).
+ *
+ * File yang dihapus di aplikasi SENGAJA tidak dihapus di Drive (arsip).
+ * Modul ini tidak menyediakan fungsi hapus file — by design.
  */
 (function (root, factory) {
   var api = factory();
@@ -13,13 +24,18 @@
 'use strict';
 
 var SCOPE='https://www.googleapis.com/auth/drive.file';
-var TOKEN_KEY='trackly_drive_token_v1';
-var QUEUE_KEY='trackly_drive_queue_v1';
+var TOKEN_KEY='pkbonDriveToken';
+var PROFILE_KEY='pkbonDriveProfile';
+var QUEUE_KEY='pkbonDrivePending';
 var GIS_URL='https://accounts.google.com/gsi/client';
 
 function cfg(){
-  var c=window.TRACKLY_CONFIG||{};
+  var w=(typeof window!=='undefined')?window:{};
+  var c=w.TRACKLY_CONFIG||{};
   return {clientId:c.googleClientId||'', folderId:c.driveFolderId||''};
+}
+function noClientId(){
+  return new Error('Google Client ID belum diisi di config.js. Oggy perlu membuatnya sekali di Google Cloud Console (OAuth Client ID tipe Web) lalu menempelkannya ke config.');
 }
 
 var gisLoaded=false, gisLoading=null;
@@ -64,16 +80,40 @@ function initClient(callback,errorCb){
   });
 }
 
+// Profil Google yang login (nama + email) — diambil sekali via Drive API
+// (endpoint about, jalan dengan scope drive.file), lalu di-cache.
+function getProfileCache(){
+  try{return JSON.parse(localStorage.getItem(PROFILE_KEY)||'null');}catch(e){return null;}
+}
+function setProfileCache(p){
+  try{if(p)localStorage.setItem(PROFILE_KEY,JSON.stringify(p));else localStorage.removeItem(PROFILE_KEY);}catch(e){}
+}
+function driveProfile(){return getProfileCache();}
+function driveFetchProfile(){
+  var cached=getProfileCache();
+  if(!driveIsConnected())return Promise.resolve(cached);
+  return fetch('https://www.googleapis.com/drive/v3/about?fields=user(displayName,emailAddress)',{
+    headers:{'Authorization':'Bearer '+accessToken}
+  }).then(function(res){
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    return res.json();
+  }).then(function(j){
+    var p=j&&j.user?{name:j.user.displayName||'',email:j.user.emailAddress||''}:null;
+    if(p)setProfileCache(p);
+    return p||cached;
+  }).catch(function(){return cached;});
+}
+
 function driveSignIn(){
   var c=cfg();
-  if(!c.clientId)return Promise.reject(new Error('Client ID Google belum dikonfigurasi.'));
+  if(!c.clientId)return Promise.reject(noClientId());
   return loadGis().then(function(){
     return new Promise(function(resolve,reject){
       try{
         initClient(function(resp){
           if(resp&&resp.access_token){
             saveToken(resp.access_token,Date.now()+(resp.expires_in||3600)*1000);
-            resolve(true);
+            driveFetchProfile().then(function(){resolve(true);},function(){resolve(true);});
           }else reject(new Error('Login Google Drive dibatalkan.'));
         },function(){reject(new Error('Login Google Drive gagal.'));});
         tokenClient.requestAccessToken({prompt:'consent'});
@@ -82,13 +122,13 @@ function driveSignIn(){
   });
 }
 
-function driveSignOut(){clearToken();tokenClient=null;}
+function driveSignOut(){clearToken();setProfileCache(null);tokenClient=null;}
 
 // Coba perbarui token diam-diam (tanpa popup). Gagal -> user harus login ulang.
 function driveEnsureToken(){
   if(driveIsConnected())return Promise.resolve(accessToken);
   var c=cfg();
-  if(!c.clientId)return Promise.reject(new Error('Client ID Google belum dikonfigurasi.'));
+  if(!c.clientId)return Promise.reject(noClientId());
   return loadGis().then(function(){
     return new Promise(function(resolve,reject){
       function fail(){reject(new Error('Sesi Google Drive kedaluwarsa. Hubungkan ulang di Pengaturan.'));}
@@ -117,7 +157,7 @@ function dataUrlToBlob(dataUrl){
 
 function apiError(res){
   return res.json().catch(function(){return null;}).then(function(j){
-    var msg='Upload ke Drive gagal ('+res.status+')';
+    var msg='Drive API gagal ('+res.status+')';
     if(j&&j.error&&j.error.message)msg+=': '+j.error.message;
     if(res.status===401||res.status===403){clearToken();msg+=' — coba hubungkan ulang Google Drive di Pengaturan.';}
     return new Error(msg);
@@ -147,6 +187,68 @@ function driveUpload(dataUrl,filename){
 function driveThumbUrl(fileId,size){
   return 'https://drive.google.com/thumbnail?id='+encodeURIComponent(fileId)+'&sz=w'+(size||1000);
 }
+// URL tampilan penuh untuk sebuah referensi (dipakai saat cetak/preview besar).
+function driveFullUrl(ref){
+  if(!ref)return '';
+  if(typeof ref==='string')return ref; // lampiran lama (base64)
+  if(ref.driveId)return driveThumbUrl(ref.driveId,1600);
+  return '';
+}
+// Ambil isi file via Drive API pakai token GIS -> blob URL (fallback terakhir).
+function driveFileBlobUrl(fileId){
+  return driveEnsureToken().then(function(token){
+    return fetch('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(fileId)+'?alt=media',{
+      headers:{'Authorization':'Bearer '+token}
+    }).then(function(res){
+      if(!res.ok)return apiError(res).then(function(e){throw e;});
+      return res.blob();
+    }).then(function(b){return URL.createObjectURL(b);});
+  });
+}
+// List isi folder lampiran (diagnostik/cek). -> [{id,name,mimeType,createdTime}]
+function driveListFiles(){
+  return driveEnsureToken().then(function(token){
+    var c=cfg();
+    var q=encodeURIComponent("'"+c.folderId+"' in parents and trashed=false");
+    return fetch('https://www.googleapis.com/drive/v3/files?q='+q+'&fields=files(id,name,mimeType,createdTime)&pageSize=100&orderBy=createdTime desc',{
+      headers:{'Authorization':'Bearer '+token}
+    }).then(function(res){
+      if(!res.ok)return apiError(res).then(function(e){throw e;});
+      return res.json();
+    }).then(function(j){return (j&&j.files)||[];});
+  });
+}
+
+// ---- Thumbnail mungil (~160px) untuk preview offline ----
+// Berjalan di browser (canvas). Di luar browser (tes) -> kembalikan dataUrl as-is.
+function driveMakeThumb(dataUrl,maxDim){
+  maxDim=maxDim||160;
+  return new Promise(function(resolve){
+    try{
+      var img=new Image();
+      img.onload=function(){
+        try{
+          var scale=Math.min(1,maxDim/Math.max(img.width||1,img.height||1));
+          var w=Math.max(1,Math.round(img.width*scale)),h=Math.max(1,Math.round(img.height*scale));
+          var c=document.createElement('canvas');c.width=w;c.height=h;
+          c.getContext('2d').drawImage(img,0,0,w,h);
+          resolve(c.toDataURL('image/jpeg',0.72));
+        }catch(e){resolve(dataUrl);}
+      };
+      img.onerror=function(){resolve(dataUrl);};
+      img.src=dataUrl;
+    }catch(e){resolve(dataUrl);}
+  });
+}
+
+// ---- Nama file: {docId}_{jenis}_{yyyymmdd-hhmm}.jpg ----
+function driveBuildFilename(docId,jenis,date){
+  function clean(s){return String(s||'').replace(/[^\w-]+/g,'_').replace(/^_+|_+$/g,'')||'x';}
+  var d=date instanceof Date?date:new Date(date||Date.now());
+  function p(n){return String(n).padStart(2,'0');}
+  var ts=d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes());
+  return clean(docId)+'_'+clean(jenis)+'_'+ts+'.jpg';
+}
 
 // ---- Format referensi ----
 function isDriveRef(v){return !!(v&&typeof v==='object'&&v.v===1&&v.driveId);}
@@ -160,12 +262,12 @@ function makeRef(meta,thumbDataUrl){
     thumb:thumbDataUrl||'',uploadedAt:meta.createdTime||new Date().toISOString()};
 }
 
-// ---- Antrean offline (localStorage) ----
-function getQueue(){try{return JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]');}catch(e){return [];}}
+// ---- Antrean offline (localStorage `pkbonDrivePending`) ----
+function getQueue(){try{var q=JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]');return Array.isArray(q)?q:[];}catch(e){return [];}}
 function setQueue(q){try{localStorage.setItem(QUEUE_KEY,JSON.stringify(q));}catch(e){}}
-function driveQueueAdd(key,dataUrl,filename){
+function driveQueueAdd(key,dataUrl,filename,thumb){
   var q=getQueue();
-  var entry={key:key,dataUrl:dataUrl,filename:filename,ts:Date.now()};
+  var entry={key:key,dataUrl:dataUrl,filename:filename,thumb:thumb||'',ts:Date.now()};
   var i=q.findIndex(function(e){return e.key===key&&e.dataUrl===dataUrl;});
   if(i>=0)q[i]=entry;else q.push(entry);
   setQueue(q);
@@ -184,7 +286,7 @@ function driveProcessQueue(onUploaded){
   q.slice().forEach(function(e){
     chain=chain.then(function(){
       return driveUpload(e.dataUrl,e.filename).then(function(meta){
-        var ref=makeRef(meta,e.dataUrl);
+        var ref=makeRef(meta,e.thumb||e.dataUrl);
         driveQueueRemove(e.key,e.dataUrl);
         done++;
         if(onUploaded)return onUploaded(e.key,ref,e.dataUrl);
@@ -198,10 +300,14 @@ return {
   driveSignIn:driveSignIn, driveSignOut:driveSignOut,
   driveIsConnected:driveIsConnected, driveReady:driveReady,
   driveEnsureToken:driveEnsureToken, driveUpload:driveUpload,
-  driveThumbUrl:driveThumbUrl, isDriveRef:isDriveRef,
+  driveThumbUrl:driveThumbUrl, driveFullUrl:driveFullUrl,
+  driveFileBlobUrl:driveFileBlobUrl, driveListFiles:driveListFiles,
+  driveProfile:driveProfile, driveFetchProfile:driveFetchProfile,
+  driveMakeThumb:driveMakeThumb, driveBuildFilename:driveBuildFilename,
+  isDriveRef:isDriveRef,
   driveRefUrl:driveRefUrl, makeRef:makeRef,
   driveQueueAdd:driveQueueAdd, driveQueueRemove:driveQueueRemove,
   driveQueueCount:driveQueueCount, driveProcessQueue:driveProcessQueue,
-  _queueList:getQueue
+  _queueList:getQueue, _queueKey:QUEUE_KEY
 };
 });
