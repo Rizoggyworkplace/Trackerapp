@@ -148,6 +148,14 @@ function formatPkbonNo(seq, isoDate){
 
 /* Validasi hasil LLM terhadap data ASLI (anti-halusinasi).
    Kembalikan objek siap-buatDraft, atau null bila tidak valid (hasil ditolak, jangan dipakai). */
+function ambilPekerjaan(d){
+  const p = String((d && d.pekerjaan) || '').trim();
+  if(p) return p;
+  // fallback: turunkan dari uraian (buang awalan "pembayaran/pelunasan")
+  const u = String((d && d.uraian) || '').trim();
+  const bersih = u.replace(/^(pembayaran|pelunasan|bayar|untuk)\s+/i, '').trim();
+  return bersih || u;
+}
 function validasiHasilLLM(hasil, ctx){
   if(!hasil || hasil.intent !== 'buat_pkbon' || !hasil.draft) return null;
   const d = hasil.draft;
@@ -178,7 +186,7 @@ function validasiHasilLLM(hasil, ctx){
     site: siteObj.name,
     siteObj,
     projectId: d.projectId || siteObj.projectId || '',
-    pekerjaan: d.pekerjaan || '',
+    pekerjaan: ambilPekerjaan(d),
     uraian: d.uraian || '',
     nominal,
     bankMatch,

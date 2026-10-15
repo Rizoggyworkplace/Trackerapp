@@ -199,3 +199,32 @@ test('handleUser: semua fungsi yang dipanggil terdefinisi (anti-ReferenceError)'
     assert.ok(defined.has(fn), 'fungsi hilang: ' + fn);
   }
 });
+
+test('validasiHasilLLM: pekerjaan kosong -> fallback dari uraian', () => {
+  const ctx = {
+    sites: [{name: 'PELUTAN', projectId: 'x', workspaceSiteId: ''}],
+    banks: [{nama: 'Purnomo', rekening: '1', bank: 'BCA'}],
+  };
+  const hasil = {intent: 'buat_pkbon',
+    draft: {site: 'PELUTAN', nominal: 400000, pekerjaan: null,
+      uraian: 'Pelunasan Jasa Admin Freelance',
+      bank: {nama: 'Purnomo', rekening: '1', bank: 'BCA'}},
+    butuh: [], tanya: null};
+  const m = A.validasiHasilLLM(hasil, ctx);
+  assert.ok(m);
+  assert.equal(m.pekerjaan, 'Jasa Admin Freelance');
+});
+
+test('validasiHasilLLM: pekerjaan dari LLM dipakai bila ada', () => {
+  const ctx = {
+    sites: [{name: 'PELUTAN', projectId: 'x', workspaceSiteId: ''}],
+    banks: [{nama: 'Purnomo', rekening: '1', bank: 'BCA'}],
+  };
+  const hasil = {intent: 'buat_pkbon',
+    draft: {site: 'PELUTAN', nominal: 400000, pekerjaan: 'Jasa Admin Freelance',
+      uraian: 'Pelunasan Jasa Admin Freelance',
+      bank: {nama: 'Purnomo', rekening: '1', bank: 'BCA'}},
+    butuh: [], tanya: null};
+  const m = A.validasiHasilLLM(hasil, ctx);
+  assert.equal(m.pekerjaan, 'Jasa Admin Freelance');
+});
