@@ -162,7 +162,12 @@ function rememberSite(showToast=false){
     sites[idx].name=name;
     if(projectId)sites[idx].projectId=projectId;
   }
-  saveJSON('pkbon_sites',sites);renderMasters();renderRekapFilters();
+  // silent=true: daftar site autocomplete ikut tersimpan lokal TANPA menaikkan revisi
+  // cloud dan TANPA memicu sync. Alasan: rememberSite dipanggil di setiap draft AI
+  // (via fillDraft/collect) — kalau tiap draft memicu push, pemakaian AI beruntun
+  // bikin rantai push tanpa henti dan indikator sync muter terus (insiden 2026-10-15).
+  // Daftar site tetap ikut snapshot pada push berikutnya yang dipicu perubahan data asli.
+  saveJSON('pkbon_sites',sites,true);renderMasters();renderRekapFilters();
   if(showToast)toast(projectId?'Site dan Project ID tersimpan otomatis':'Site tersimpan otomatis');
 }
 function applySavedSite(){
