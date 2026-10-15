@@ -35,14 +35,25 @@ Aturan: **nomor urut = (nomor terbesar di kolom PKBON) + 1**,
 diformat `00935-3/X/2026`
 (5 digit + `-3/` + bulan romawi + tahun — sama dengan `buildPkbonNo`).
 
-- Sheet dibaca publik via gviz (`fetch`, tanpa login).
+- Sheet dibaca via Sheets API v4 (butuh login Google, scope `spreadsheets`).
+  Jangan pakai gviz: gviz berhenti di sel kosong pertama sehingga baris tulis
+  bisa jatuh di tengah data / menimpa baris terisi (bug 2026-10-15).
 - Hasil di-cache per sesi; kalau fetch gagal (offline) → fallback ke
   `nextSequence()` lokal (history perangkat).
 - **Tulis-balik otomatis**: setiap PKBON yang disimpan via asisten langsung
   mengisi baris baru: kolom C=nomor PKBON, E=site, F=tanggal (D/M/YYYY),
   G=perihal, H=nominal (`Rp 3.309.543`), I=PIC (nama profil Google).
-  Baris tulis = tepat setelah baris terakhir yang terisi (bukan baris kosong
-  pertama). Nomor yang sudah ada di sheet tidak ditulis ulang (anti duplikat).
+  Baris tulis = tepat setelah baris terakhir yang terisi (selalu di ujung
+  paling bawah — tidak pernah mengisi celah kosong di tengah, tidak pernah
+  menimpa baris yang sudah terisi).
+- **PERATURAN baris tulis** (minta Oggy, 2026-10-15):
+  1. "Terisi" dinilai dari seluruh kolom data C..I, bukan cuma kolom C —
+     baris yang diisi manual tanpa nomor PKBON tetap dihitung.
+  2. Pengaman: tidak pernah menulis di/atas baris 981 (baris terakhir data
+     saat aturan dibuat). Kalau hitungan jatuh di bawahnya, pakai baris 982.
+  3. Sebelum PUT, baris target dicek ulang: kalau ada sel C..I yang terisi,
+     geser ke bawah sampai ketemu baris yang C..I-nya kosong semua.
+  Nomor yang sudah ada di sheet tidak ditulis ulang (anti duplikat).
 - Tulis-balik memakai OAuth Google yang sudah ada (scope `spreadsheets`
   ditambahkan ke login Drive). Koneksi lama perlu **hubungkan ulang sekali**
   di Pengaturan untuk menyetujui izin baru. Gagal tulis tidak menggagalkan

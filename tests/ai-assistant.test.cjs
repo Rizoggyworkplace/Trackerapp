@@ -98,23 +98,55 @@ test('seqDariNomorPkbon', () => {
 
 test('getNextSeqFromSheet: max nomor PKBON + 1', async () => {
   const fakeFetch = async () => ({
-    text: async () => '/*O_o*/\ngoogle.visualization.Query.setResponse({"table":{"rows":[' +
-      '{"c":[{"v":"PKBON"}]},' +
-      '{"c":[{"v":"00929-3/IX/2026"}]},' +
-      '{"c":[{"v":"00931-1/X/2026"}]},' +
-      '{"c":[{"v":"00934-3/X/2026"}]},' +
-      '{"c":[{"v":null}]}' +
-      ']}});',
+    ok: true,
+    json: async () => ({values: [
+      ['PKBON'], ['00929-3/IX/2026'], [], ['00931-1/X/2026'], ['00934-3/X/2026'], [],
+    ]}),
   });
-  const seq = await A.getNextSeqFromSheet(fakeFetch);
+  const seq = await A.getNextSeqFromSheet(async () => 'T', fakeFetch);
   assert.equal(seq, 935);
   assert.equal(A.formatPkbonNo(seq, '2026-10-13'), '00935-3/X/2026');
 });
 
-test('cariBarisTulis: setelah baris terakhir yang terisi', () => {
-  // header + 3 terisi + 1 kosong di tengah + 1 terisi -> tulis setelah yg terakhir
-  const col = ['PKBON', '00929-3/IX/2026', '', '00934-3/X/2026', '', ''];
-  assert.equal(A.cariBarisTulis(col), 5); // baris 4 terisi -> tulis di baris 5
+test('cariBarisTulis: setelah baris terakhir yang terisi di C..I', () => {
+  // header + 3 terisi + 1 kosong di tengah + 1 terisi (C kosong, E terisi manual)
+  // -> tetap dihitung, tulis di bawah baris terakhir
+  const grid = [
+    ['PKBON','','SITE','','','',''],
+    ['00929-3/IX/2026','','S1','','','',''],
+    [], // celah kosong di tengah
+    ['00934-3/X/2026','','S2','','','',''],
+    ['','','S3-manual','','','',''], // C kosong tapi E terisi
+  ];
+  assert.equal(A.cariBarisTulis(grid), A.BARIS_MINIMAL + 1); // pengaman 982
+  assert.equal(A.BARIS_MINIMAL, 981);
+});
+
+test('cariBarisTulis: baris bawah dengan C kosong tetap dihitung', () => {
+  // grid panjang: data sampai baris 985, baris 984 C-nya kosong (diisi manual)
+  const grid = [['PKBON','','','','','','']];
+  for(let i = 0; i < 982; i++) grid.push(['00900-3/X/2026','','S','','','','']); // baris 2..983
+  grid.push(['','','manual-tanpa-nomor','','','','']); // baris 984
+  grid.push(['00980-3/X/2026','','S','','','','']); // baris 985
+  assert.equal(A.cariBarisTulis(grid), 986);
+});
+
+test('tulisKeSheet: geser ke bawah bila baris target ada sel terisi', async () => {
+  // C terisi sampai baris 982, tapi baris 983 kolom E terisi (tanpa nomor)
+  const grid = [['PKBON','','','','','','']];
+  for(let i = 0; i < 981; i++) grid.push(['00900-3/X/2026','','S','','','','']); // baris 2..982
+  grid.push(['','','catatan-manual','','','','']); // baris 983: C kosong, E terisi
+  const calls = [];
+  const fakeFetch = async (url, opt) => {
+    calls.push({url, opt});
+    if(opt && opt.method === 'PUT') return {ok: true, json: async () => ({})};
+    return {ok: true, json: async () => ({values: grid.map(r => r)})};
+  };
+  const doc = {pkbonNo: '00982-3/X/2026', site: 'X', tanggal: '2026-10-15', items: []};
+  const baris = await A.tulisKeSheet(doc, '', {getToken: async () => 'T', fetchImpl: fakeFetch});
+  assert.equal(baris, 984); // baris 983 ada isinya -> geser ke 984
+  const put = calls.find(c => c.opt && c.opt.method === 'PUT');
+  assert.ok(put.url.includes('values/Sheet2!C984%3AI984'), 'range C984:I984, dapat: ' + put.url);
 });
 
 test('barisSheet: susunan kolom C..I', () => {
@@ -125,36 +157,52 @@ test('barisSheet: susunan kolom C..I', () => {
 });
 
 test('tulisKeSheet: PUT ke range yang benar', async () => {
-  const gviz = async () => ({text: async () =>
-    '/*O_o*/\ngoogle.visualization.Query.setResponse({"table":{"rows":[' +
-    '{"c":[{"v":"PKBON"}]},' +
-    '{"c":[{"v":"00934-3/X/2026"}]},' +
-    '{"c":[{"v":null}]}]}});'});
   const calls = [];
   const fakeFetch = async (url, opt) => {
     calls.push({url, opt});
-    if(url.includes('gviz')) return gviz();
-    return {ok: true, json: async () => ({})};
+    if(opt && opt.method === 'PUT') return {ok: true, json: async () => ({})};
+    return {ok: true, json: async () => ({values: [['PKBON'], ['00934-3/X/2026'], []]})};
   };
   const doc = {pkbonNo: '00935-3/X/2026', site: 'Sendangreto', tanggal: '2026-10-13',
     items: [{uraian: 'Pembayaran multiguna', sat: 'Ls', vol: 1, harga: 3309543, keterangan: ''}]};
   const baris = await A.tulisKeSheet(doc, 'RAFI', {getToken: async () => 'TOKEN123', fetchImpl: fakeFetch});
-  assert.equal(baris, 3);
+  // grid mini: hitungan baris 3, tapi pengaman BARIS_MINIMAL -> 982
+  assert.equal(baris, 982);
   const put = calls.find(c => c.opt && c.opt.method === 'PUT');
-  assert.ok(put.url.includes('values/Sheet2!C3%3AI3'), 'range C3:I3, dapat: ' + put.url);
-  assert.ok(put.opt.headers.Authorization === 'Bearer TOKEN123');
+  assert.ok(put.url.includes('values/Sheet2!C982%3AI982'), 'range C982:I982, dapat: ' + put.url);
+  assert.equal(put.opt.headers.Authorization, 'Bearer TOKEN123');
   const body = JSON.parse(put.opt.body);
   assert.deepEqual(body.values[0],
     ['00935-3/X/2026', '', 'Sendangreto', '13/10/2026', 'Pembayaran multiguna', 'Rp 3.309.543', 'RAFI']);
 });
 
+test('tulisKeSheet: tulis di ujung bawah walau ada celah kosong di tengah', async () => {
+  // Regresi bug 2026-10-15: gviz kepotong di sel kosong pertama (baris 811) sehingga
+  // tulis jatuh di tengah data (bahkan menimpa). v4 harus baca sampai ujung (baris 980).
+  const values = [['PKBON']];
+  for(let i = 0; i < 809; i++) values.push([String(700 + i).padStart(5, '0') + '-1/VII/2026']); // baris 2..810
+  values.push([]); // baris 811: celah kosong
+  for(let i = 0; i < 169; i++) values.push([String(766 + i).padStart(5, '0') + '-3/VIII/2026']); // baris 812..980
+  const calls = [];
+  const fakeFetch = async (url, opt) => {
+    calls.push({url, opt});
+    if(opt && opt.method === 'PUT') return {ok: true, json: async () => ({})};
+    return {ok: true, json: async () => ({values})};
+  };
+  const doc = {pkbonNo: '00935-3/X/2026', site: 'X', tanggal: '2026-10-15', items: []};
+  const baris = await A.tulisKeSheet(doc, '', {getToken: async () => 'T', fetchImpl: fakeFetch});
+  // baris terakhir terisi = 980 -> hitungan 981, tapi pengaman BARIS_MINIMAL -> 982
+  assert.equal(baris, 982);
+  const put = calls.find(c => c.opt && c.opt.method === 'PUT');
+  assert.ok(put.url.includes('values/Sheet2!C982%3AI982'), 'range C982:I982, dapat: ' + put.url);
+});
+
 test('tulisKeSheet: menolak bila nomor sudah ada (anti duplikat)', async () => {
-  const gviz = async () => ({text: async () =>
-    '/*O_o*/\ngoogle.visualization.Query.setResponse({"table":{"rows":[' +
-    '{"c":[{"v":"00935-3/X/2026"}]}]}});'});
+  const fakeFetch = async () => ({ok: true,
+    json: async () => ({values: [['00935-3/X/2026']]})});
   const doc = {pkbonNo: '00935-3/X/2026', site: 'X', tanggal: '2026-10-13', items: []};
   await assert.rejects(
-    A.tulisKeSheet(doc, '', {getToken: async () => 'T', fetchImpl: gviz}),
+    A.tulisKeSheet(doc, '', {getToken: async () => 'T', fetchImpl: fakeFetch}),
     /sudah ada di sheet/
   );
 });
