@@ -165,29 +165,33 @@ const SHEET_ID = '1qU0Yvskf9cfDvV__yIrVZln1VHmMcPe_h1Iw5x9xZ0o';
 const SHEET_TAB = 'Sheet2';
 let seqCache = null;
 
-function gvizJson(txt){
-  const a = txt.indexOf('{'), b = txt.lastIndexOf('}');
-  return JSON.parse(txt.substring(a, b + 1));
-}
-
 /* Nomor urut = (nilai terbesar di kolom PKBON) + 1.
    cth: 00934-3/X/2026 -> 935. Format: pad5 + '-3/' + bulan romawi + '/' + tahun. */
 function seqDariNomorPkbon(v){
   const m = String(v == null ? '' : v).match(/^(\d+)-\d+\//);
   return m ? parseInt(m[1], 10) : 0;
 }
-/* Baca kolom C (PKBON) apa adanya — dipakai penomoran & tulis-balik. */
-async function bacaKolomC(fetchImpl){
+/* Baca kolom C (PKBON) via Sheets API v4 — dipakai penomoran & tulis-balik.
+   v4 mengembalikan values sampai baris terakhir yang terisi (celah kosong di
+   tengah tetap muncul sebagai []), jadi baris tulis selalu tepat di ujung bawah.
+   JANGAN pakai gviz di sini: gviz berhenti di sel kosong pertama sehingga baris
+   tulis bisa jatuh di tengah data, bahkan menimpa baris yang sudah terisi. */
+async function bacaKolomC(getToken, fetchImpl){
   const f = fetchImpl || (typeof fetch !== 'undefined' ? fetch : null);
   if(!f) throw new Error('fetch tidak tersedia');
-  const url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
-    '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(SHEET_TAB) + '&range=C1:C3000';
-  const res = await f(url);
-  const json = gvizJson(await res.text());
-  return (json.table.rows || []).map(r => (r.c && r.c[0] && r.c[0].v != null) ? String(r.c[0].v) : '');
+  const token = await (getToken || (async () => {
+    if(typeof TrackersDrive === 'undefined') throw new Error('Modul Drive belum dimuat.');
+    return TrackersDrive.driveEnsureToken();
+  }))();
+  const url = 'https://sheets.googleapis.com/v4/spreadsheets/' + SHEET_ID +
+    '/values/' + encodeURIComponent(SHEET_TAB + '!C1:C3000');
+  const res = await f(url, {headers: {'Authorization': 'Bearer ' + token}});
+  if(!res.ok) throw new Error('baca sheet gagal: HTTP ' + res.status);
+  const j = await res.json();
+  return (j.values || []).map(r => (r && r[0] != null) ? String(r[0]) : '');
 }
-async function getNextSeqFromSheet(fetchImpl){
-  const col = await bacaKolomC(fetchImpl);
+async function getNextSeqFromSheet(getToken, fetchImpl){
+  const col = await bacaKolomC(getToken, fetchImpl);
   let max = 0;
   for(const v of col){ const n = seqDariNomorPkbon(v); if(n > max) max = n; }
   if(!max) throw new Error('tidak ada nomor PKBON di sheet');
@@ -195,11 +199,40 @@ async function getNextSeqFromSheet(fetchImpl){
   return seqCache;
 }
 
-/* Baris tulis = tepat setelah baris terakhir yang kolom PKBON-nya terisi (1-based). */
-function cariBarisTulis(col){
+/* Baris tulis = tepat setelah baris terakhir yang terisi di kolom C..I (1-based).
+   PERATURAN tulis-balik (minta Oggy, 2026-10-15):
+   1. Selalu di ujung paling bawah — tidak pernah mengisi celah kosong di tengah,
+      tidak pernah menimpa baris yang sudah terisi.
+   2. "Terisi" dinilai dari seluruh kolom data C..I (bukan cuma C), supaya baris
+      yang diisi manual tanpa nomor PKBON (kolom C kosong) tetap dihitung.
+   3. Pengaman: tidak pernah menulis di/atas BARIS_MINIMAL (baris terakhir data
+      saat aturan dibuat: 981). Kalau hitungan jatuh di bawahnya, pakai
+      BARIS_MINIMAL + 1. */
+const BARIS_MINIMAL = 981;
+
+/* Baca grid C1:I3000: tiap elemen = array 7 sel (C..I) per baris. */
+async function bacaGridCI(getToken, fetchImpl){
+  const f = fetchImpl || (typeof fetch !== 'undefined' ? fetch : null);
+  if(!f) throw new Error('fetch tidak tersedia');
+  const token = await getToken();
+  const url = 'https://sheets.googleapis.com/v4/spreadsheets/' + SHEET_ID +
+    '/values/' + encodeURIComponent(SHEET_TAB + '!C1:I3000');
+  const res = await f(url, {headers: {'Authorization': 'Bearer ' + token}});
+  if(!res.ok) throw new Error('baca sheet gagal: HTTP ' + res.status);
+  const j = await res.json();
+  return (j.values || []).map(r => (Array.isArray(r) ? r : []).slice(0, 7));
+}
+
+function barisKosong(row){
+  return !(row || []).some(v => String(v == null ? '' : v).trim() !== '');
+}
+
+/* grid: array baris, tiap baris array 7 sel C..I. */
+function cariBarisTulis(grid){
   let last = -1;
-  col.forEach((v, i) => { if(String(v == null ? '' : v).trim() !== '') last = i; });
-  return last + 2;
+  (grid || []).forEach((row, i) => { if(!barisKosong(row)) last = i; });
+  const hitung = last + 2; // index 0-based -> nomor baris 1-based berikutnya
+  return Math.max(hitung, BARIS_MINIMAL + 1);
 }
 
 /* Nilai kolom C..I: PKBON, REGIONAL, SITE NAME, TGL. SURAT, PERIHAL, NOMINAL, PIC. */
@@ -223,10 +256,16 @@ async function tulisKeSheet(doc, pic, deps){
   const f = deps.fetchImpl || (typeof fetch !== 'undefined' ? fetch : null);
   if(!f) throw new Error('fetch tidak tersedia');
   const token = await getToken();
-  const col = await bacaKolomC(f);
-  if(col.some(v => String(v).trim() === String(doc.pkbonNo).trim()))
+  const grid = await bacaGridCI(async () => token, f);
+  const colC = grid.map(r => (r && r[0] != null) ? String(r[0]) : '');
+  if(colC.some(v => String(v).trim() === String(doc.pkbonNo).trim()))
     throw new Error('Nomor ' + doc.pkbonNo + ' sudah ada di sheet — tidak ditulis ulang.');
-  const baris = cariBarisTulis(col);
+  let baris = cariBarisTulis(grid);
+  // Sabuk + suspender: kalau baris target ternyata ada sel C..I yang terisi,
+  // geser ke bawah sampai ketemu baris yang C..I-nya kosong semua.
+  const indexByBaris = b => (grid[b - 1] || []);
+  let aman = 0;
+  while(!barisKosong(indexByBaris(baris)) && aman < 5000){ baris++; aman++; }
   const range = SHEET_TAB + '!C' + baris + ':I' + baris;
   const url = 'https://sheets.googleapis.com/v4/spreadsheets/' + SHEET_ID +
     '/values/' + encodeURIComponent(range) + '?valueInputOption=USER_ENTERED';
@@ -273,7 +312,8 @@ const TrackersAI = {
   parseNominal, kataToAngka, detectIntent, findSite, findBank, extractJenis,
   parsePerintahPKBON, parseBankBaru,
   getNextSeqFromSheet, getCachedSeq, clearSeqCache, formatPkbonNo, seqDariNomorPkbon,
-  bacaKolomC, cariBarisTulis, barisSheet, tulisKeSheet,
+  bacaKolomC, bacaGridCI, cariBarisTulis, barisKosong, barisSheet, tulisKeSheet,
+  BARIS_MINIMAL,
   SHEET_ID, SHEET_TAB, llm, norm, titleCase,
 };
 
