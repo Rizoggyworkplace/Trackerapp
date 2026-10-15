@@ -1,8 +1,9 @@
-// Trackers Workspace — AI parse perintah PKBON via Groq (LLM).
+// Trackers Workspace — AI parse perintah PKBON via multi-provider (failover).
 // Deploy as a Supabase Edge Function named "ai-parse".
-// Flow: aplikasi kirim {text, context} -> function verifikasi JWT -> panggil
-// Groq (OpenAI-compatible chat completions, JSON mode) -> kembalikan JSON draft.
-// GROQ_API_KEY disimpan sebagai secret Supabase, tidak pernah ke browser.
+// Flow: aplikasi kirim {text, context} -> function verifikasi JWT -> coba provider
+// berurutan (Groq -> DeepSeek -> OpenRouter, semua OpenAI-compatible + JSON mode)
+// -> kembalikan JSON draft. API key disimpan sebagai secret Supabase,
+// tidak pernah ke browser.
 //
 // Anti-halusinasi:
 //  1. LLM hanya boleh memilih site/bank dari daftar yang dikirim (exact match).
@@ -11,8 +12,6 @@
 //  4. Klien memvalidasi ulang hasil terhadap data asli sebelum jadi draft.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-
-const GROQ_MODEL = Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-20b";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -101,8 +100,24 @@ serve(async (req: Request): Promise<Response> => {
   try {
     const url = Deno.env.get("SUPABASE_URL")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const groqKey = Deno.env.get("GROQ_API_KEY") || "";
-    if(!groqKey) return json({ ok: false, error: "GROQ_API_KEY belum diset di secrets." }, 500);
+    // Daftar provider AI berurutan: utama -> cadangan 1 -> cadangan 2.
+    // Semua OpenAI-compatible (chat completions + JSON mode). Provider tanpa key dilewati otomatis.
+    const PROVIDERS = [
+      { name: "groq",
+        url: "https://api.groq.com/openai/v1/chat/completions",
+        key: Deno.env.get("GROQ_API_KEY") || "",
+        model: Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-20b" },
+      { name: "deepseek",
+        url: "https://api.deepseek.com/chat/completions",
+        key: Deno.env.get("DEEPSEEK_API_KEY") || "",
+        model: Deno.env.get("DEEPSEEK_MODEL") || "deepseek-chat" },
+      { name: "openrouter",
+        url: "https://openrouter.ai/api/v1/chat/completions",
+        key: Deno.env.get("OPENROUTER_API_KEY") || "",
+        model: Deno.env.get("OPENROUTER_MODEL") || "openai/gpt-oss-120b:free" },
+    ].filter(p => p.key);
+    if(!PROVIDERS.length)
+      return json({ ok: false, error: "API key AI belum diset di secrets Supabase." }, 500);
 
     // Verifikasi JWT pemanggil (pola sama seperti invite-user).
     const jwt = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
@@ -121,50 +136,60 @@ serve(async (req: Request): Promise<Response> => {
     if (text.length > 2000) return json({ ok: false, error: "Teks terlalu panjang." }, 400);
     const context = body.context || {};
 
-    // Panggil Groq (OpenAI-compatible) dengan 1x retry untuk 429/503 (transient).
-    let groqRes: Response | null = null;
-    let lastStatus = 0, errText = "";
-    for(let attempt = 0; attempt < 2; attempt++){
-      groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
+    // Failover: coba provider berurutan. 429/5xx/gangguan jaringan langsung
+    // lanjut ke cadangan TANPA retry buta ke provider yang sama (retry 2,5 dtk
+    // ke provider yang sama terbukti gagal lagi saat kepentok TPM per-menit).
+    const chatBody = (model: string) => JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: buildUserMessage(text, context) },
+      ],
+      temperature: 0.1,
+      max_tokens: 1024,
+      response_format: { type: "json_object" },
+    });
+    let servedBy = "", raw = "";
+    const failures: string[] = [];
+    for(const p of PROVIDERS){
+      try{
+        const headers: Record<string, string> = {
           "Content-Type": "application/json",
-          "Authorization": "Bearer " + groqKey,
-        },
-        body: JSON.stringify({
-          model: GROQ_MODEL,
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            { role: "user", content: buildUserMessage(text, context) },
-          ],
-          temperature: 0.1,
-          max_tokens: 1024,
-          response_format: { type: "json_object" },
-        }),
-      });
-      lastStatus = groqRes.status;
-      if(groqRes.ok) break;
-      errText = await groqRes.text().catch(() => "");
-      if(lastStatus !== 429 && lastStatus !== 503) break;
-      if(attempt === 0) await new Promise(r => setTimeout(r, 2500));
+          "Authorization": "Bearer " + p.key,
+        };
+        if(p.name === "openrouter"){
+          headers["HTTP-Referer"] = "https://rizoggyworkplace.github.io/Trackerapp/";
+          headers["X-Title"] = "Trackers Workspace PKBON AI";
+        }
+        const r = await fetch(p.url, { method: "POST", headers, body: chatBody(p.model) });
+        if(r.ok){
+          const g = await r.json();
+          raw = g?.choices?.[0]?.message?.content || "";
+          servedBy = p.name;
+          break;
+        }
+        const t = await r.text().catch(() => "");
+        failures.push(p.name + ": HTTP " + r.status);
+        console.error("ai-parse failover:", p.name, "HTTP", r.status, t.slice(0, 200));
+      }catch(e){
+        failures.push(p.name + ": network error");
+        console.error("ai-parse failover:", p.name, "network error", String(e).slice(0, 200));
+      }
     }
-    if(!groqRes || !groqRes.ok){
-      console.error("Groq API error:", lastStatus, errText.slice(0, 300));
-      const msg = lastStatus === 429 ? "AI kena rate limit, coba lagi 1 menit."
-        : lastStatus === 503 ? "AI sedang sibuk (server penuh), coba lagi sebentar."
-        : lastStatus === 401 ? "API key Groq ditolak (HTTP 401)."
-        : "AI error (Groq HTTP " + lastStatus + ").";
-      return json({ ok: false, error: msg }, 502);
+    if(!servedBy){
+      console.error("ai-parse: semua provider gagal:", failures.join(" | "));
+      const kenaLimit = failures.some(f => f.includes("429"));
+      return json({ ok: false, error: kenaLimit
+        ? "AI kena rate limit di semua provider, coba lagi 1 menit."
+        : "AI sedang tidak bisa dihubungi (" + failures.join(", ") + "). Coba lagi sebentar." }, 502);
     }
-    const g = await groqRes.json();
-    const raw = g?.choices?.[0]?.message?.content || "";
     let parsed: any = null;
     try{
       parsed = JSON.parse(raw);
     }catch{
       return json({ ok: false, error: "AI mengembalikan format tak dikenal." }, 502);
     }
-    return json({ ok: true, result: parsed });
+    return json({ ok: true, result: parsed, provider: servedBy });
   } catch (e) {
     console.error("ai-parse error:", e);
     return json({ ok: false, error: "Terjadi kesalahan di server AI." }, 500);
