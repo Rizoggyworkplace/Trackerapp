@@ -228,3 +228,33 @@ test('validasiHasilLLM: pekerjaan dari LLM dipakai bila ada', () => {
   const m = A.validasiHasilLLM(hasil, ctx);
   assert.equal(m.pekerjaan, 'Jasa Admin Freelance');
 });
+
+test('validasiHasilLLM: rekening baru -> bankBaru one-off (tanpa isBaru eksplisit)', () => {
+  const ctx = {
+    sites: [{name: 'PELUTAN', projectId: 'x', workspaceSiteId: ''}],
+    banks: [{nama: 'Joko', rekening: '111', bank: 'BCA'}],
+  };
+  const hasil = {intent: 'buat_pkbon',
+    draft: {site: 'PELUTAN', nominal: 400000, pekerjaan: 'Admin', uraian: 'x',
+      bank: {nama: 'Purnomo', rekening: '999888', bank: 'BRI'}},  // tanpa isBaru
+    butuh: [], tanya: null};
+  const m = A.validasiHasilLLM(hasil, ctx);
+  assert.ok(m);
+  assert.equal(m.bankMatch, null);
+  assert.deepEqual(m.bankBaru, {nama: 'Purnomo', rekening: '999888', bank: 'BRI'});
+});
+
+test('validasiHasilLLM: rekening mirip tapi beda -> tidak dipaksa match', () => {
+  const ctx = {
+    sites: [{name: 'PELUTAN', projectId: 'x', workspaceSiteId: ''}],
+    banks: [{nama: 'Joko', rekening: '111222', bank: 'BCA'}],
+  };
+  const hasil = {intent: 'buat_pkbon',
+    draft: {site: 'PELUTAN', nominal: 400000, pekerjaan: 'Admin', uraian: 'x',
+      bank: {nama: 'Joko Baru', rekening: '111223', bank: 'BCA'}},
+    butuh: [], tanya: null};
+  const m = A.validasiHasilLLM(hasil, ctx);
+  assert.ok(m);
+  assert.equal(m.bankMatch, null); // jangan match ke Joko lama
+  assert.ok(m.bankBaru);
+});

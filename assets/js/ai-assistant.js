@@ -169,16 +169,20 @@ function validasiHasilLLM(hasil, ctx){
   // nominal: harus angka > 0
   const nominal = Number(d.nominal);
   if(!(nominal > 0)) return null;
-  // bank: cocokkan ke daftar, atau bank baru yang eksplisit
+  // bank: cocokkan ke daftar; rekening yang tidak dikenal = bank BARU (one-off,
+  // tidak masuk daftar master). Jangan pernah paksa cocok ke bank yang mirip.
   let bankMatch = null, bankBaru = null;
   if(d.bank){
     const norm = s => String(s || '').trim().toLowerCase();
+    const rek = String(d.bank.rekening || '').replace(/\D/g, '');
     bankMatch = (ctx.banks || []).find(b =>
-      (d.bank.rekening && String(b.rekening) === String(d.bank.rekening)) ||
+      (rek && String(b.rekening).replace(/\D/g, '') === rek) ||
       (d.bank.nama && norm(b.nama) === norm(d.bank.nama))) || null;
-    if(!bankMatch && d.bank.isBaru){
-      bankBaru = {nama: d.bank.nama || '', rekening: d.bank.rekening || '', bank: d.bank.bank || ''};
-      if(!bankBaru.nama && !bankBaru.rekening) bankBaru = null;
+    if(!bankMatch){
+      const nama = String(d.bank.nama || '').trim();
+      if(nama || rek){
+        bankBaru = {nama: nama || '-', rekening: d.bank.rekening || '', bank: String(d.bank.bank || '').trim()};
+      }
     }
     if(!bankMatch && !bankBaru) return null; // bank ngarang -> tolak
   } else return null;
@@ -367,7 +371,7 @@ function initUI(){
       '<div class="row"><span>Site</span><b>' + escHtml(d.site) + '</b></div>' +
       '<div class="row"><span>Uraian</span><b>' + escHtml(d.uraian) + '</b></div>' +
       '<div class="row"><span>Nominal</span><b>' + escHtml(fmtRp(d.nominal)) + '</b></div>' +
-      '<div class="row"><span>Penerima</span><b>' + escHtml(b.nama) + ' — ' + escHtml(b.bank) + ' ' + escHtml(maskRek(b.rekening)) + '</b></div>' +
+      '<div class="row"><span>Penerima</span><b>' + escHtml(b.nama) + ' — ' + escHtml(b.bank) + ' ' + escHtml(maskRek(b.rekening)) + (d.isBankBaru ? ' <i>(rekening baru)</i>' : '') + '</b></div>' +
       (d.sumber === 'sheet' ? '<div class="row"><span>Nomor dari</span><b>sheet operasional ✓</b></div>' : '') +
       '</div>';
   }
@@ -445,7 +449,8 @@ function initUI(){
     const dt = new Date(tanggal + 'T00:00:00');
     pending = {type: 'confirm', draft: {
       pkbonNo, tanggal, tanggalTampil: dt.toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'}),
-      site: d.site, uraian: d.uraian, nominal: d.nominal, bankTampil, sumber: n.sumber, docId: doc && doc.id,
+      site: d.site, uraian: d.uraian, nominal: d.nominal, bankTampil, isBankBaru: bankIdx < 0 && !!d.bankBaru,
+      sumber: n.sumber, docId: doc && doc.id,
     }};
     tampilKonfirmasi(pending.draft);
   }
