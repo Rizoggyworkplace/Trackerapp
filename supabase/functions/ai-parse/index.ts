@@ -116,22 +116,6 @@ serve(async (req: Request): Promise<Response> => {
     if (text.length > 2000) return json({ ok: false, error: "Teks terlalu panjang." }, 400);
     const context = body.context || {};
 
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-          contents: [{ role: "user", parts: [{ text: buildUserMessage(text, context) }] }],
-          generationConfig: {
-            temperature: 0.1,
-            maxOutputTokens: 1024,
-            responseMimeType: "application/json",
-          },
-        }),
-      }
-    );
     // Panggil Groq (OpenAI-compatible) dengan 1x retry untuk 429/503 (transient).
     let groqRes: Response | null = null;
     let lastStatus = 0, errText = "";
