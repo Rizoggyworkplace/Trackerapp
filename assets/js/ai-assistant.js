@@ -1,5 +1,5 @@
-/* Asisten AI Trackers — perintah bahasa Indonesia menjadi draft PKBON (full Gemini).
-   Alur: chat -> edge function ai-parse (Supabase, Gemini) -> validasi anti-halusinasi
+/* Asisten AI Trackers — perintah bahasa Indonesia menjadi draft PKBON (full Groq).
+   Alur: chat -> edge function ai-parse (Supabase, Groq) -> validasi anti-halusinasi
    -> draft -> konfirmasi -> simpan. Tidak pernah auto-save.
    Nomor urut PKBON diambil dari Google Sheet operasional.
    Catatan: file ini bisa di-require dari Node untuk unit test
@@ -186,6 +186,12 @@ function validasiHasilLLM(hasil, ctx){
     }
     if(!bankMatch && !bankBaru) return null; // bank ngarang -> tolak
   } else return null;
+  // tanggal: teruskan dari LLM bila valid YYYY-MM-DD, kalau tidak pakai null (nanti fallback hari ini)
+  let tanggal = null;
+  if(d.tanggal && /^\d{4}-\d{2}-\d{2}$/.test(String(d.tanggal))){
+    const dt = new Date(String(d.tanggal) + 'T00:00:00');
+    if(!isNaN(dt.getTime())) tanggal = String(d.tanggal);
+  }
   return {
     site: siteObj.name,
     siteObj,
@@ -193,6 +199,7 @@ function validasiHasilLLM(hasil, ctx){
     pekerjaan: ambilPekerjaan(d),
     uraian: d.uraian || '',
     nominal,
+    tanggal,
     bankMatch,
     bankBaru,
   };
@@ -393,14 +400,19 @@ function initUI(){
   }
 
   function simpanBankKeMaster(){
-    if(!pending || pending.type !== 'confirm' || !pending.draft.isBankBaru) return;
-    const b = pending.draft.bankTampil || {};
-    const r = api.addBankToMaster ? api.addBankToMaster(b) : {added: false, reason: 'Fitur belum tersedia.'};
-    if(r.added){
-      pending.draft.isBankBaru = false;
-      addMsg('sys', '✅ ' + (b.nama || 'Rekening') + ' tersimpan ke daftar bank master.');
-    } else {
-      addMsg('sys', '⚠️ ' + (r.reason || 'Gagal menyimpan ke daftar bank.'));
+    try{
+      const api = window.TrackersPkbonAPI;
+      if(!pending || pending.type !== 'confirm' || !pending.draft.isBankBaru) return;
+      const b = pending.draft.bankTampil || {};
+      const r = api && api.addBankToMaster ? api.addBankToMaster(b) : {added: false, reason: 'Fitur belum tersedia.'};
+      if(r.added){
+        pending.draft.isBankBaru = false;
+        addMsg('sys', '✅ ' + (b.nama || 'Rekening') + ' tersimpan ke daftar bank master.');
+      } else {
+        addMsg('sys', '⚠️ ' + (r.reason || 'Gagal menyimpan ke daftar bank.'));
+      }
+    }catch(err){
+      addMsg('sys', '⚠️ Gagal menyimpan: ' + (err && err.message ? err.message : 'error tak dikenal.'));
     }
   }
 
@@ -443,7 +455,7 @@ function initUI(){
   async function buatDraft(d){
     const ctx = await getCtx();
     const api = ctx.api;
-    const tanggal = api.today();
+    const tanggal = d.tanggal || api.today();
     const n = await nextSeq();
     if(!n.seq){
       addMsg('ai', 'Gue nggak bisa ambil nomor urut (sheet nggak kebaca & data lokal kosong). Cek koneksi internet dulu ya.');
@@ -471,7 +483,7 @@ function initUI(){
     tampilKonfirmasi(pending.draft);
   }
 
-  /* ---------- Gemini via edge function ai-parse ---------- */
+  /* ---------- Groq via edge function ai-parse ---------- */
   function bangunKonteksLLM(ctx){
     const api = ctx.api;
     let history = [];
