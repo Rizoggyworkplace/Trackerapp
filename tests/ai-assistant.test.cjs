@@ -188,6 +188,20 @@ test('validasiHasilLLM: bank baru eksplisit diterima', () => {
   assert.deepEqual(m.bankBaru, {nama: 'Budi', rekening: '999', bank: 'BNI'});
 });
 
+test('validasiHasilLLM: site null (user bilang "kosongkan saja") lolos, site dikosongkan', () => {
+  const ctx = {sites: [{name: 'Sendangreto', projectId: 'x'}],
+    banks: [{nama: 'Joko', rekening: '123', bank: 'BCA'}]};
+  const hasil = {intent: 'buat_pkbon',
+    draft: {site: null, projectId: null, pekerjaan: 'Top Up', uraian: 'Reimburse top up',
+      nominal: 239960, bank: {nama: 'Joko', rekening: '123', bank: 'BCA', isBaru: false}},
+    butuh: [], tanya: null};
+  const m = A.validasiHasilLLM(hasil, ctx);
+  assert.ok(m);
+  assert.equal(m.site, '');
+  assert.equal(m.siteObj, null);
+  assert.equal(m.projectId, '');
+});
+
 test('handleUser: semua fungsi yang dipanggil terdefinisi (anti-ReferenceError)', () => {
   const fs = require('fs');
   const src = fs.readFileSync(__dirname + '/../assets/js/ai-assistant.js', 'utf-8');
