@@ -320,7 +320,7 @@ function site(id){return state.sites.find(s=>s.id===id)}
 
 let pkbonModuleReady=false;
 let pkbonModuleLoading=false;
-const PKBON_MODULE_VERSION='20261013.81';
+const PKBON_MODULE_VERSION='20261013.82';
 let pendingPkbonCommands=[];
 let pkbonHistoryCache=null;
 function currentPkbonTheme(){
