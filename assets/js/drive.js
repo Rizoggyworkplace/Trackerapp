@@ -1,7 +1,8 @@
 /* Trackers Workspace — Google Drive module (lampiran foto PKBON).
  *
- * Auth via Google Identity Services (OAuth 2.0 token flow, scope drive.file —
- * minimal: hanya file yang dibuat aplikasi ini yang bisa diakses).
+ * Auth via Google Identity Services (OAuth 2.0 token flow,
+ * scope drive.file + spreadsheets — drive.file minimal untuk lampiran foto,
+ * spreadsheets untuk tulis-balik nomor PKBON ke sheet operasional.
  * Tiap anggota tim login Google sekali via "Hubungkan Google Drive" di
  * Pengaturan; token disimpan di browser (localStorage) dan diperbarui diam-diam
  * oleh GIS selama sesi masih valid.
@@ -23,7 +24,7 @@
 })(typeof window === 'object' ? window : this, function () {
 'use strict';
 
-var SCOPE='https://www.googleapis.com/auth/drive.file';
+var SCOPE='https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets';
 var TOKEN_KEY='pkbonDriveToken';
 var PROFILE_KEY='pkbonDriveProfile';
 var QUEUE_KEY='pkbonDrivePending';

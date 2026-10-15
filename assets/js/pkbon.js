@@ -655,6 +655,34 @@ setTimeout(()=>{
 
 
 
+/* API internal untuk Asisten AI (assets/js/ai-assistant.js).
+   Diekspos agar asisten bisa membuat draft PKBON tanpa mengutak-atik DOM langsung. */
+window.TrackersPkbonAPI={
+  newDoc,syncPreview,renderRows,saveCurrent,generatePkbonNo,buildPkbonNo,collect,nextSequence,
+  showFormTab(){showTab('formTab')},toast,today,
+  getSites(){return sites.map(s=>({name:s.name,projectId:s.projectId||'',workspaceSiteId:s.workspaceSiteId||''}))},
+  getBanks(){return banks.map(b=>({nama:b.nama,rekening:b.rekening,bank:b.bank}))},
+  getSelectedBank(){const b=selectedBank();return b?{nama:b.nama,rekening:b.rekening,bank:b.bank,index:banks.indexOf(b)}:null},
+  getHistory(){return history},
+  /* Isi form dari objek draft {site,workspaceSiteId,projectId,pekerjaan,keteranganUmum,
+     items:[{uraian,sat,vol,harga,keterangan}],bankIndex,bank:{nama,rekening,bank},pkbonNo,tanggal}.
+     Mengembalikan hasil collect(). */
+  fillDraft(d){
+    newDoc();
+    if(d.site){$('#siteInput').value=d.site;state.workspaceSiteId=d.workspaceSiteId||''}
+    if(d.projectId!=null)$('#projectId').value=d.projectId;
+    if(d.pekerjaan!=null)$('#pekerjaan').value=d.pekerjaan;
+    if(d.keteranganUmum!=null)$('#keteranganUmum').value=d.keteranganUmum;
+    if(Array.isArray(d.items)&&d.items.length)state.items=d.items.map(it=>({uraian:String(it.uraian||''),sat:String(it.sat||'Ls'),vol:Number(it.vol)||0,harga:Number(it.harga)||0,keterangan:String(it.keterangan||'')}));
+    if(d.bankIndex!=null&&d.bankIndex!=='')$('#bankSelect').value=String(d.bankIndex);
+    else if(d.bank)state.bankSnapshot={nama:d.bank.nama||'',rekening:d.bank.rekening||'',bank:d.bank.bank||''};
+    if(d.pkbonNo){$('#pkbonNo').value=d.pkbonNo;state.pkbonAuto=false}
+    if(d.tanggal)$('#tanggal').value=d.tanggal;
+    renderRows();rememberSite(false);syncPreview();showTab('formTab');
+    return collect();
+  }
+};
+
 /* Native PKBON module: no iframe height bridge required. */
 
 })();
