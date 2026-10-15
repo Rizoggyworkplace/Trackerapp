@@ -104,19 +104,24 @@ serve(async (req: Request): Promise<Response> => {
     // Semua OpenAI-compatible (chat completions + JSON mode). Provider tanpa key dilewati otomatis.
     // Urutan: Groq dulu (limit terbesar), lalu OpenRouter (gratis), DeepSeek terakhir
     // karena butuh saldo/top-up agar tidak 402.
+    // timeoutMs: batas tunggu per provider — provider yang ngadat (lambat tapi tidak
+    // error) tidak boleh menahan seluruh rantai; langsung lanjut ke cadangan.
     const PROVIDERS = [
       { name: "groq",
         url: "https://api.groq.com/openai/v1/chat/completions",
         key: Deno.env.get("GROQ_API_KEY") || "",
-        model: Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-20b" },
+        model: Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-20b",
+        timeoutMs: 20000 },
       { name: "openrouter",
         url: "https://openrouter.ai/api/v1/chat/completions",
         key: Deno.env.get("OPENROUTER_API_KEY") || "",
-        model: Deno.env.get("OPENROUTER_MODEL") || "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free" },
+        model: Deno.env.get("OPENROUTER_MODEL") || "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        timeoutMs: 35000 },
       { name: "deepseek",
         url: "https://api.deepseek.com/chat/completions",
         key: Deno.env.get("DEEPSEEK_API_KEY") || "",
-        model: Deno.env.get("DEEPSEEK_MODEL") || "deepseek-chat" },
+        model: Deno.env.get("DEEPSEEK_MODEL") || "deepseek-chat",
+        timeoutMs: 20000 },
     ].filter(p => p.key);
     if(!PROVIDERS.length)
       return json({ ok: false, error: "API key AI belum diset di secrets Supabase." }, 500);
@@ -154,6 +159,8 @@ serve(async (req: Request): Promise<Response> => {
     let servedBy = "", raw = "";
     const failures: string[] = [];
     for(const p of PROVIDERS){
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), p.timeoutMs);
       try{
         const headers: Record<string, string> = {
           "Content-Type": "application/json",
@@ -163,7 +170,8 @@ serve(async (req: Request): Promise<Response> => {
           headers["HTTP-Referer"] = "https://rizoggyworkplace.github.io/Trackerapp/";
           headers["X-Title"] = "Trackers Workspace PKBON AI";
         }
-        const r = await fetch(p.url, { method: "POST", headers, body: chatBody(p.model) });
+        const r = await fetch(p.url, { method: "POST", headers, body: chatBody(p.model), signal: ctrl.signal });
+        clearTimeout(timer);
         if(r.ok){
           const g = await r.json();
           raw = g?.choices?.[0]?.message?.content || "";
@@ -174,8 +182,10 @@ serve(async (req: Request): Promise<Response> => {
         failures.push(p.name + ": HTTP " + r.status);
         console.error("ai-parse failover:", p.name, "HTTP", r.status, t.slice(0, 200));
       }catch(e){
-        failures.push(p.name + ": network error");
-        console.error("ai-parse failover:", p.name, "network error", String(e).slice(0, 200));
+        clearTimeout(timer);
+        const timeout = e && (e as Error).name === "AbortError";
+        failures.push(p.name + (timeout ? ": timeout" : ": network error"));
+        console.error("ai-parse failover:", p.name, timeout ? "timeout" : "network error", String(e).slice(0, 200));
       }
     }
     if(!servedBy){
