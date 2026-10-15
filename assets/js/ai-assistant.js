@@ -1,8 +1,7 @@
-/* Asisten AI Trackers — perintah bahasa Indonesia menjadi draft PKBON.
-   v1: parser berbasis aturan (tanpa API key, jalan offline kecuali ambil nomor).
-   Nomor urut PKBON diambil dari Google Sheet operasional
-   (kolom NO pertama yang kolom PKBON-nya masih kosong).
-   Upgrade LLM: isi TrackersAI.llm.endpoint — lihat docs/asisten-ai.md
+/* Asisten AI Trackers — perintah bahasa Indonesia menjadi draft PKBON (full Gemini).
+   Alur: chat -> edge function ai-parse (Supabase, Gemini) -> validasi anti-halusinasi
+   -> draft -> konfirmasi -> simpan. Tidak pernah auto-save.
+   Nomor urut PKBON diambil dari Google Sheet operasional.
    Catatan: file ini bisa di-require dari Node untuk unit test
    (bagian UI hanya aktif bila document tersedia). */
 (function(){
@@ -10,155 +9,9 @@
 
 /* ================= 1. Util ================= */
 const norm = s => String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]/g, '');
-const titleCase = s => String(s == null ? '' : s).toLowerCase().replace(/(?:^|\s)\S/g, c => c.toUpperCase());
 const escHtml = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ROMAWI = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
 
-/* ================= 2. Parser nominal ================= */
-const KATA_ANGKA = {nol:0,satu:1,dua:2,tiga:3,empat:4,lima:5,enam:6,tujuh:7,delapan:8,sembilan:9,sepuluh:10,sebelas:11,
-  seratus:100,seribu:1000};
-const KATA_MAGNITUD = ['ribu','juta','miliar','ratus','puluh','belas'];
-
-/* "tujuh ratus ribu" -> 700000 ; "tiga juta lima ratus ribu" -> 3500000 */
-function kataToAngka(words){
-  let total = 0, cur = 0, valid = false;
-  for(const w of words){
-    if(w in KATA_ANGKA){ cur += KATA_ANGKA[w]; valid = true; }
-    else if(w === 'belas'){ cur += 10; valid = true; }
-    else if(w === 'puluh'){ cur *= 10; valid = true; }
-    else if(w === 'ratus'){ cur = (cur || 1) * 100; valid = true; }
-    else if(w === 'ribu'){ cur = (cur || 1) * 1000; total += cur; cur = 0; valid = true; }
-    else if(w === 'juta'){ cur = (cur || 1) * 1e6; total += cur; cur = 0; valid = true; }
-    else if(w === 'miliar'){ cur = (cur || 1) * 1e9; total += cur; cur = 0; valid = true; }
-    else return null;
-  }
-  if(!valid) return null;
-  return total + cur;
-}
-
-/* Mengembalikan {value, raw} atau null. */
-function parseNominal(text){
-  const t = ' ' + String(text).toLowerCase() + ' ';
-  let m;
-  // "Rp 3.309.543" / "3.309.543" (titik = pemisah ribuan)
-  m = t.match(/(\d{1,3}(?:\.\d{3})+)(?!\d)/);
-  if(m) return {value: parseInt(m[1].replace(/\./g, ''), 10), raw: m[0].trim()};
-  // "700rb" / "1,5jt" / "2 juta" / "700 ribu"
-  m = t.match(/(\d+(?:[.,]\d+)?)\s*(rb|ribu|jt|juta|miliar)\b/);
-  if(m){
-    const mult = {rb:1e3, ribu:1e3, jt:1e6, juta:1e6, miliar:1e9}[m[2]];
-    return {value: Math.round(parseFloat(m[1].replace(',', '.')) * mult), raw: m[0].trim()};
-  }
-  // kata: "tujuh ratus ribu" (minimal 2 kata, diakhiri kata magnitud)
-  const words = t.replace(/[^a-z ]/g, ' ').split(/\s+/).filter(Boolean);
-  for(let i = 0; i < words.length; i++){
-    for(let j = Math.min(i + 6, words.length); j > i + 1; j--){
-      const slice = words.slice(i, j);
-      if(!KATA_MAGNITUD.includes(slice[slice.length - 1])) continue;
-      const v = kataToAngka(slice);
-      if(v != null && v > 0) return {value: v, raw: slice.join(' ')};
-    }
-  }
-  return null;
-}
-
-/* ================= 3. Parser perintah PKBON ================= */
-function detectIntent(text){
-  const t = ' ' + String(text).toLowerCase() + ' ';
-  const sebutPkbon = /(pkbon|kas\s*bon|kasbon|\bbon\b)/.test(t);
-  if(sebutPkbon && /(buatkan|bikin|buat|tolong|minta|catatkan)/.test(t)) return 'buat_pkbon';
-  if(/bayarkan/.test(t)) return 'buat_pkbon'; // cth: "tolong dibantu untuk bayarkan ..."
-  return null;
-}
-
-/* Cari site di teks. ctx.sites = [{name, projectId, workspaceSiteId}] */
-function findSite(text, sites){
-  const nt = norm(text);
-  const found = [];
-  for(const s of (sites || [])){
-    const ns = norm(s.name);
-    if(ns && ns.length >= 3 && nt.includes(ns)) found.push({s, score: ns.length});
-  }
-  found.sort((a, b) => b.score - a.score);
-  return found.map(f => f.s);
-}
-
-const GELAR = /^(pak|bu|bpk|ibu|mas|mba|mbak)\s+/;
-const KATA_NOISE_BANK = ['seperti', 'ini', 'itu', 'bro', 'sis', 'ya', 'dong', 'tolong'];
-/* Hapus frase dengan spasi fleksibel: "Sendangreto" cocok dengan "sendang reto". */
-function buangFrase(t, frase){
-  const pat = String(frase).split('').map(c => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s*');
-  return String(t).replace(new RegExp(pat, 'gi'), ' ');
-}
-/* Cari bank/penerima. Mengembalikan {matches:[], vague:bool} */
-function findBank(text, banks){
-  const t = ' ' + String(text).toLowerCase() + ' ';
-  if(/rekening\s+(ini|itu|tersebut)/.test(t)) return {matches: [], vague: true};
-  let m = t.match(/(?:transfer\s+ke|kirim\s+ke|dikirim\s+ke|ke\s+rekening)\s+([a-z. ]+?)(?=\s*(?:senilai|sebesar|untuk|dengan|nilai|nomor|yang|seperti|$|\.|,))/);
-  const cands = m ? [m[1].trim()] : [];
-  const matches = [];
-  for(let c of cands){
-    const words = c.split(/\s+/);
-    while(words.length && KATA_NOISE_BANK.includes(words[words.length - 1])) words.pop();
-    c = words.join(' ');
-    const nc = norm(String(c).replace(GELAR, ''));
-    if(!nc) continue;
-    for(const b of (banks || [])){
-      const nb = norm(String(b.nama).replace(GELAR, ''));
-      if(nb && (nb.includes(nc) || nc.includes(nb))) matches.push(b);
-    }
-  }
-  return {matches: [...new Map(matches.map(b => [b.nama + '|' + b.rekening, b])).values()], vague: false};
-}
-
-/* Ambil sisa teks sebagai jenis pekerjaan/uraian setelah entitas dikenal dibuang. */
-function extractJenis(text, taken){
-  let t = ' ' + String(text);
-  t = t.replace(/@\w+(?:\s+[A-Z][a-zA-Z]*)?/g, ' '); // @Om Emir -> hilang semua (sblm lowercase)
-  t = t.toLowerCase() + ' ';
-  for(const raw of (taken || [])){
-    if(raw) t = buangFrase(t, raw);
-  }
-  const buang = ['bos','tolong','dibantu','untuk','buatkan','bikinkan','bikin','buat','dengan','nomor','terbaru',
-    'ini','itu','tersebut','bro','sis','pak','bu','site','transfer','ke','dari','kirim','dikirim','rekening',
-    'nilai','senilai','sebesar','nominal','bayarkan','bayar','pembayaran','mg','seperti','pkbon','kasbon','di','rp'];
-  const words = t.replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(w => w && !buang.includes(w));
-  return words.join(' ').replace(/\s+/g, ' ').trim();
-}
-
-function parsePerintahPKBON(text, ctx){
-  ctx = ctx || {};
-  const out = {intent: 'buat_pkbon', nominal: null, nominalRaw: null, sites: [], bank: {matches: [], vague: false},
-    jenis: '', pekerjaan: '', uraian: '', questions: []};
-  const nom = parseNominal(text);
-  if(nom){ out.nominal = nom.value; out.nominalRaw = nom.raw; }
-  else out.questions.push('nominal');
-  out.sites = findSite(text, ctx.sites);
-  if(out.sites.length === 0) out.questions.push('site');
-  out.bank = findBank(text, ctx.banks);
-  if(!out.bank.vague && out.bank.matches.length === 0) out.questions.push('bank');
-  if(out.bank.matches.length > 1) out.questions.push('bank_pilih');
-  if(out.sites.length > 1) out.questions.push('site_pilih');
-  const taken = [nom && nom.raw];
-  for(const s of out.sites) taken.push(s.name);
-  for(const b of out.bank.matches) taken.push(b.nama);
-  const jenis = extractJenis(text, taken);
-  out.jenis = jenis;
-  out.pekerjaan = titleCase(jenis.split(' ').slice(0, 4).join(' '));
-  out.uraian = /^pembayaran\b/.test(jenis) ? titleCase(jenis) : (jenis ? 'Pembayaran ' + jenis : '');
-  return out;
-}
-
-/* Jawaban user berupa info bank baru: "BCA 1881000011 Joko" */
-function parseBankBaru(text){
-  const t = String(text);
-  const bankM = t.match(/\b(bca|bni|bri|mandiri|btn|cimb|danamon|permata|bsi)\b/i);
-  const rekM = t.match(/\d{6,25}/);
-  let nama = t.replace(/\b(bca|bni|bri|mandiri|btn|cimb|danamon|permata|bsi)\b/gi, ' ')
-    .replace(/\d{6,25}/g, ' ').replace(/[^a-zA-Z .]/g, ' ').replace(/\s+/g, ' ').trim();
-  if(!bankM || !rekM) return null;
-  return {bank: bankM[1].toUpperCase(), rekening: rekM[0], nama: titleCase(nama) || '-'};
-}
 
 /* ================= 4. Nomor PKBON dari Google Sheet ================= */
 const SHEET_ID = '1qU0Yvskf9cfDvV__yIrVZln1VHmMcPe_h1Iw5x9xZ0o';
@@ -293,22 +146,8 @@ function formatPkbonNo(seq, isoDate){
   return String(seq).padStart(5, '0') + '-3/' + ROMAWI[d.getMonth()] + '/' + d.getFullYear();
 }
 
-/* ================= 5. LLM (opsional — fase 2) ================= */
-const llm = {
-  /* Isi dengan pemanggil Supabase Edge Function bila sudah ada,
-     cth: async (text, ctx) => supabase.functions.invoke('ai-parse', {body:{text}}) */
-  endpoint: null,
-  async parse(text, ctx){
-    if(typeof this.endpoint !== 'function') return null;
-    try{
-      const r = await this.endpoint(text, ctx || {});
-      return r && r.draft ? r : null;
-    }catch(e){ return null; }
-  }
-};
-
 /* Validasi hasil LLM terhadap data ASLI (anti-halusinasi).
-   Kembalikan objek siap-buatDraft, atau null bila tidak valid -> fallback aturan. */
+   Kembalikan objek siap-buatDraft, atau null bila tidak valid (hasil ditolak, jangan dipakai). */
 function validasiHasilLLM(hasil, ctx){
   if(!hasil || hasil.intent !== 'buat_pkbon' || !hasil.draft) return null;
   const d = hasil.draft;
@@ -350,12 +189,10 @@ function validasiHasilLLM(hasil, ctx){
 
 /* ================= 6. Ekspor ================= */
 const TrackersAI = {
-  parseNominal, kataToAngka, detectIntent, findSite, findBank, extractJenis,
-  parsePerintahPKBON, parseBankBaru,
   getNextSeqFromSheet, getCachedSeq, clearSeqCache, formatPkbonNo, seqDariNomorPkbon,
   bacaKolomC, bacaGridCI, cariBarisTulis, barisKosong, barisSheet, tulisKeSheet,
   BARIS_MINIMAL,
-  SHEET_ID, SHEET_TAB, llm, norm, titleCase, validasiHasilLLM,
+  SHEET_ID, SHEET_TAB, norm, validasiHasilLLM,
 };
 
 if(typeof window !== 'undefined'){
@@ -463,7 +300,7 @@ function initUI(){
   };
 
   /* ---------- state percakapan ---------- */
-  let pending = null; // {type, draft, data}
+  let pending = null; // {type:'confirm', draft}
   const riwayat = []; // memori percakapan untuk LLM: [{role:'user'|'ai', text}]
   function catatRiwayat(role, text){
     const bersih = String(text == null ? '' : text).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -605,233 +442,42 @@ function initUI(){
     tampilKonfirmasi(pending.draft);
   }
 
-  function tanya(chipsPertanyaan){
-    setChips(chipsPertanyaan.map(c => ({label: c.label, text: c.text})));
-  }
-
-  /* ---------- LLM fase 2: panggil edge function ai-parse ---------- */
-  function bangunKonteksLLM(ctx){
-    const api = ctx.api;
-    let history = [];
-    try{
-      history = (api.getHistory() || []).slice(0, 5).map(h => ({
-        pkbonNo: h.pkbonNo || '',
-        uraian: (h.items && h.items[0] && h.items[0].uraian) || '',
-        site: h.site || '',
-        nominal: h.total || 0,
-        bankNama: (h.bank && h.bank.nama) || '',
-      }));
-    }catch(_){}
-    let formState = null;
-    try{
-      formState = {
-        site: (document.querySelector('#siteInput') || {}).value || '',
-        pekerjaan: (document.querySelector('#pekerjaan') || {}).value || '',
-        keterangan: (document.querySelector('#keteranganUmum') || {}).value || '',
-      };
-    }catch(_){}
-    return {
-      sites: (ctx.sites || []).map(s => ({name: s.name, projectId: s.projectId || ''})),
-      banks: (ctx.banks || []).map(b => ({nama: b.nama, rekening: b.rekening, bank: b.bank})),
-      history,
-      formState,
-      conversation: riwayat.slice(-6),
-    };
-  }
-
-  async function panggilLLM(teksAsli, ctx){
-    try{
-      const cc = (typeof cloudClient !== 'undefined') ? cloudClient : null;
-      if(!cc) return null;
-      const {data, error} = await cc.functions.invoke('ai-parse', {
-        body: {text: teksAsli, context: bangunKonteksLLM(ctx)},
-      });
-      if(error || !data || !data.ok || !data.result) return null;
-      return data.result; // {intent, draft, butuh, tanya}
-    }catch(_){ return null; }
-  }
-
-
-  async function tanganiParse(p, ctx, teksAsli){
-    // LLM dulu (fase 2) — dengan konteks penuh + validasi anti-halusinasi
-    const hasilLLM = await panggilLLM(teksAsli, ctx);
-    if(hasilLLM && hasilLLM.intent === 'buat_pkbon'){
-      const mapped = validasiHasilLLM(hasilLLM, ctx);
-      if(mapped){
-        await buatDraft(mapped);
-        return;
-      }
-      // LLM ragu / ada field kurang -> tanyakan balik, jangan ngarang
-      if(hasilLLM.tanya){
-        addMsg('ai', escHtml(hasilLLM.tanya));
-        return;
-      }
-    }
-    // Fallback: parser aturan v1
-
-    if(p.questions.includes('nominal')){
-      pending = {type: 'nominal', p, ctx};
-      addMsg('ai', 'Nominalnya berapa? (bisa ketik mis. <i>700rb</i>, <i>1,5jt</i>, atau <i>Rp 3.309.543</i>)');
-      return;
-    }
-    // site
-    let siteObj = null, site = '';
-    if(p.sites.length === 1){ siteObj = p.sites[0]; site = siteObj.name; }
-    else if(p.sites.length > 1){
-      pending = {type: 'site_pilih', p, ctx};
-      addMsg('ai', 'Maksudnya site yang mana?');
-      tanya(p.sites.slice(0, 5).map(s => ({label: s.name, text: '__site__:' + s.name})));
-      return;
-    } else {
-      const m = teksAsli.match(/site\s+([a-zA-Z0-9 ._-]{2,40})/i);
-      pending = {type: 'site_baru', p, ctx, namaSite: m ? m[1].trim() : ''};
-      addMsg('ai', 'Site-nya belum ketemu di data. ' + (m ? 'Maksudnya site <b>' + escHtml(m[1].trim()) + '</b>?' : '') + ' Ketik <b>nama site</b> + <b>project ID</b>, mis: <i>Sendangreto 25TS06B0042</i>');
-      return;
-    }
-    lanjutBank(p, ctx, siteObj, site);
-  }
-
-  function lanjutBank(p, ctx, siteObj, site, projectIdBaru){
-    const done = (bankMatch, bankBaru) => {
-      const draft = {
-        site, siteObj,
-        projectId: siteObj ? (siteObj.projectId || '') : (projectIdBaru || ''),
-        pekerjaan: p.pekerjaan, uraian: p.uraian, nominal: p.nominal,
-        bankMatch: bankMatch || null, bankBaru: bankBaru || null,
-      };
-      if(!draft.projectId){
-        pending = {type: 'projectid', draft, p, ctx};
-        addMsg('ai', 'Project ID untuk site <b>' + escHtml(site) + '</b> apa? (ketik mis. <i>25TS06B0042</i>)');
-        return;
-      }
-      buatDraft(draft);
-    };
-    if(p.bank.vague){
-      const sel = ctx.api.getSelectedBank();
-      if(sel){ done(sel, null); return; }
-      pending = {type: 'bank', p, ctx, siteObj, site};
-      addMsg('ai', '"Rekening ini" — maksudnya transfer ke siapa? Ketik nama penerimanya.');
-      return;
-    }
-    if(p.bank.matches.length === 1){ done(p.bank.matches[0], null); return; }
-    if(p.bank.matches.length > 1){
-      pending = {type: 'bank_pilih', p, ctx, siteObj, site};
-      addMsg('ai', 'Ketemu beberapa yang mirip, yang mana?');
-      tanya(p.bank.matches.slice(0, 5).map(b => ({label: b.nama + ' — ' + b.bank, text: '__bank__:' + b.nama + '|' + b.rekening})));
-      return;
-    }
-    pending = {type: 'bank', p, ctx, siteObj, site};
-    addMsg('ai', 'Penerimanya belum ketemu di data bank. Ketik <b>nama bank + nomor rekening + nama</b>, mis: <i>BCA 1881000011 Joko</i>');
-  }
-
   async function handleUser(teks){
-    const tampil = teks.startsWith('__site__:') ? teks.slice(9)
-      : teks.startsWith('__bank__:') ? teks.slice(9).split('|')[0]
-      : teks;
-    addMsg('user', escHtml(tampil));
+    addMsg('user', escHtml(teks));
     if(busy) return;
-    // jawaban atas pertanyaan pending
-    if(pending){
-      const pd = pending;
-      if(pd.type === 'nominal'){
-        const nom = parseNominal(teks);
-        if(!nom){ addMsg('ai', 'Gue nggak nangkep nominalnya. Coba mis. <i>700rb</i> atau <i>Rp 3.309.543</i>'); return; }
-        pending = null;
-        pd.p.nominal = nom.value; pd.p.nominalRaw = nom.raw;
-        pd.p.questions = pd.p.questions.filter(q => q !== 'nominal');
-        busy = true;
-        try{ await tanganiParse(pd.p, pd.ctx, teks); }finally{ busy = false; }
+    // jawaban atas konfirmasi draft
+    if(pending && pending.type === 'confirm'){
+      if(/^(ya|iya|simpan|ok|oke|lanjut|gas)$/i.test(teks.trim())){ simpanDraft(); return; }
+      if(/^(batal|gak|nggak|tidak)$/i.test(teks.trim())){
+        pending = null; setChips([]);
+        addMsg('sys', 'Draft dibatalkan. Form tetap terisi — bisa lu edit manual.');
         return;
       }
-      if(pd.type === 'site_pilih' && teks.startsWith('__site__:')){
-        const nama = teks.slice(9);
-        const s = pd.ctx.sites.find(x => x.name === nama);
-        pending = null;
-        busy = true;
-        try{ lanjutBank(pd.p, pd.ctx, s, s.name); }finally{ busy = false; }
-        return;
-      }
-      if(pd.type === 'bank_pilih' && teks.startsWith('__bank__:')){
-        const [nama, rek] = teks.slice(9).split('|');
-        const b = pd.ctx.banks.find(x => x.nama === nama && x.rekening === rek);
-        pending = null;
-        const draft = {site: pd.site, siteObj: pd.siteObj, projectId: pd.siteObj ? (pd.siteObj.projectId || '') : '',
-          pekerjaan: pd.p.pekerjaan, uraian: pd.p.uraian, nominal: pd.p.nominal, bankMatch: b, bankBaru: null};
-        busy = true;
-        try{ await buatDraft(draft); }finally{ busy = false; }
-        return;
-      }
-      if(pd.type === 'site_baru'){
-        const m = teks.match(/([a-zA-Z0-9 ._-]{2,40})\s+([a-zA-Z0-9-]{3,})/);
-        if(!m){ addMsg('ai', 'Formatnya: <i>nama site + project ID</i>, mis. <i>Sendangreto 25TS06B0042</i>'); return; }
-        pending = null;
-        busy = true;
-        try{ lanjutBank(pd.p, pd.ctx, null, m[1].trim(), m[2].trim()); }finally{ busy = false; }
-        return;
-      }
-      if(pd.type === 'projectid'){
-        const pid = teks.trim();
-        if(pid.length < 3){ addMsg('ai', 'Project ID-nya kayaknya kependekan. Coba lagi ya.'); return; }
-        pending = null;
-        pd.draft.projectId = pid;
-        busy = true;
-        try{ await buatDraft(pd.draft); }finally{ busy = false; }
-        return;
-      }
-      if(pd.type === 'bank'){
-        const baru = parseBankBaru(teks);
-        if(baru){
-          const cek = findBank(baru.nama, pd.ctx.banks);
-          pending = null;
-          const draft = {site: pd.site, siteObj: pd.siteObj, projectId: pd.siteObj ? (pd.siteObj.projectId || '') : '',
-            pekerjaan: pd.p.pekerjaan, uraian: pd.p.uraian, nominal: pd.p.nominal,
-            bankMatch: cek.matches[0] || null, bankBaru: cek.matches[0] ? null : baru};
-          if(!draft.projectId){
-            pending = {type: 'projectid', draft, p: pd.p, ctx: pd.ctx};
-            addMsg('ai', 'Oke, penerimanya <b>' + escHtml(baru.nama) + '</b>. Project ID untuk site <b>' + escHtml(pd.site) + '</b> apa?');
-            return;
-          }
-          busy = true;
-          try{ await buatDraft(draft); }finally{ busy = false; }
-          return;
-        }
-        // coba lagi sebagai nama
-        const cek = findBank('transfer ke ' + teks, pd.ctx.banks);
-        if(cek.matches.length === 1){
-          pending = null;
-          const draft = {site: pd.site, siteObj: pd.siteObj, projectId: pd.siteObj ? (pd.siteObj.projectId || '') : '',
-            pekerjaan: pd.p.pekerjaan, uraian: pd.p.uraian, nominal: pd.p.nominal, bankMatch: cek.matches[0], bankBaru: null};
-          busy = true;
-          try{ await buatDraft(draft); }finally{ busy = false; }
-          return;
-        }
-        addMsg('ai', 'Belum ketemu juga. Ketik lengkap ya: <i>BANK nomor-rekening nama</i>, mis. <i>BCA 1881000011 Joko</i>');
-        return;
-      }
-      if(pd.type === 'confirm'){
-        if(/^(ya|iya|simpan|ok|oke|lanjut|gas)$/i.test(teks.trim())){ simpanDraft(); return; }
-        if(/^(batal|gak|nggak|tidak)$/i.test(teks.trim())){
-          pending = null; setChips([]);
-          addMsg('sys', 'Draft dibatalkan. Form tetap terisi — bisa lu edit manual.');
-          return;
-        }
-      }
-      pending = null; // pertanyaan basi → anggap perintah baru
-    }
-    const intent = detectIntent(teks);
-    if(intent !== 'buat_pkbon'){
-      addMsg('ai', 'Hmm, gue belum ngerti. Gue bisa bikinin <b>draft PKBON</b> dari perintah kayak:<br><br>' +
-        '<i>buatkan PKBON untuk pelunasan jasa PLN 700rb transfer ke Baidhowi</i>');
-      return;
+      pending = null; // jawaban lain -> anggap perintah baru
     }
     busy = true;
     const typing = addMsg('sys', 'mikiiir… 🤔');
     try{
       const ctx = await getCtx();
-      const p = parsePerintahPKBON(teks, ctx);
+      const hasil = await panggilLLM(teks, ctx);
       typing.remove();
-      // site baru (override dari jawaban site_baru) — ditangani di lanjutBank via draft
-      await tanganiParse(p, ctx, teks);
+      if(!hasil){
+        addMsg('ai', 'AI-nya lagi nggak bisa dihubungi (server/koneksi). Coba lagi sebentar ya.');
+        return;
+      }
+      if(hasil.intent !== 'buat_pkbon' || !hasil.draft){
+        addMsg('ai', hasil.tanya ? escHtml(hasil.tanya) :
+          'Hmm, gue belum ngerti. Gue bisa bikinin <b>draft PKBON</b> dari perintah kayak:<br><br>' +
+          '<i>buatkan PKBON untuk pelunasan jasa PLN 700rb transfer ke Baidhowi</i>');
+        return;
+      }
+      const mapped = validasiHasilLLM(hasil, ctx);
+      if(!mapped){
+        addMsg('ai', hasil.tanya ? escHtml(hasil.tanya) :
+          'Gue nggak yakin sama datanya \u2014 site/bank/nominal nggak cocok sama data yang ada. Coba perjelas ya.');
+        return;
+      }
+      await buatDraft(mapped);
     }catch(e){
       typing.remove();
       addMsg('ai', 'Waduh, ada error: ' + escHtml(e.message || e));
@@ -839,6 +485,7 @@ function initUI(){
       busy = false;
     }
   }
+
 
   window.TrackersAI.handleUser = handleUser;
 }

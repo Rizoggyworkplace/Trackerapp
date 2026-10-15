@@ -13,19 +13,22 @@ tersedia di semua halaman aplikasi.
 
 Asisten tidak pernah menyimpan otomatis — selalu ada konfirmasi dulu.
 
-## Yang dipahami (v1, tanpa API key)
+## Cara kerja (full Gemini, tanpa parser aturan)
 
-| Hal | Contoh | Hasil |
-|---|---|---|
-| Nominal | `700rb`, `1,5jt`, `2 juta`, `Rp 3.309.543`, `tujuh ratus ribu` | 700000, 1500000, 2000000, 3309543, 700000 |
-| Site | `site sendang Reto` | fuzzy-match ke master site → `Sendangreto` |
-| Penerima | `transfer ke pak joko` | fuzzy-match ke master bank (gelar diabaikan) |
-| `rekening ini` | `dikirim ke rekening ini` | pakai bank yang sedang dipilih di form |
-| Nomor PKBON | otomatis | dari Google Sheet operasional (lihat bawah) |
-| Mention/basa-basi | `@Om Emir`, `tolong dibantu` | diabaikan |
+1. User ketik perintah → dikirim ke edge function `ai-parse` (Supabase) bersama konteks:
+   daftar site, daftar bank, 5 riwayat PKBON terakhir, state form aktif,
+   dan 6 pesan percakapan terakhir.
+2. Gemini mengembalikan JSON draft terstruktur (`intent`, `draft`, `butuh`, `tanya`).
+3. `validasiHasilLLM` mencocokkan hasil ke data ASLI sebelum jadi draft:
+   site harus sama persis dengan daftar, bank dari daftar (atau bank baru yang
+   eksplisit), nominal angka > 0 yang benar-benar disebut. Kalau ngarang → ditolak.
+4. Kalau AI ragu / info kurang → ia bertanya balik (`tanya`), bukan mengarang.
+   Jawaban user diproses sebagai perintah lanjutan dengan memori percakapan,
+   jadi "ganti nominalnya jadi 500rb" atau "site yang sama" tetap nyambung.
+5. Draft valid → kartu konfirmasi → **Simpan** / Batal.
 
-Kalau site/bank tidak ketemu, asisten bertanya (tampil sebagai pilihan/ketikan).
-Kalau nominal tidak disebut, asisten menanyakannya.
+Kalau AI tidak bisa dihubungi (server/koneksi) → pesan error, user coba lagi.
+API key Gemini dipegang edge function, tidak pernah ke-expose di browser.
 
 ## Nomor PKBON dari Google Sheet
 
@@ -79,28 +82,18 @@ konfirmasi user ──▶ API.saveCurrent() ──▶ history
   `getSelectedBank`, `nextSequence`, …). Satu-satunya perubahan di file ini.
 - Nomor sheet: `TrackersAI.getNextSeqFromSheet()` / `formatPkbonNo()`.
 
-## LLM via Edge Function (fase 2) — LIVE 2026-10-15
+## Edge function `ai-parse`
 
-Parser aturan tetap jadi fallback. Urutan di `tanganiParse`:
-1. `panggilLLM(teks, ctx)` → POST ke edge function `ai-parse` (JWT user).
-2. `validasiHasilLLM(hasil, ctx)` → site/bank/nominal dicocokkan ke data ASLI;
-   kalau ngarang → tolak, fallback ke aturan. Kalau LLM ragu → tampilkan
-   `tanya`, jangan mengarang.
-3. Kalau LLM gagal/offline → parser aturan v1 seperti biasa.
+`supabase/functions/ai-parse/index.ts` — verifikasi JWT via direct fetch
+`/auth/v1/user` (pola `invite-user`), secret `GEMINI_API_KEY`, model default
+`gemini-flash-latest` (override via `GEMINI_MODEL`).
 
-Konteks yang dikirim (`bangunKonteksLLM`): daftar site, daftar bank, 5 riwayat
-PKBON terakhir, state form aktif, 6 pesan percakapan terakhir. Memori
-percakapan dicatat di `riwayat` (maks 12, dikirim 6 terakhir).
-
-Edge function `supabase/functions/ai-parse/index.ts`:
-- Verifikasi JWT via direct fetch `/auth/v1/user` (pola `invite-user`).
-- Secret `GEMINI_API_KEY` (jangan taruh di client). Override model via `GEMINI_MODEL`
-  (default `gemini-flash-latest`).
-- Grounding: site harus cocok persis daftar, bank dari daftar kecuali `isBaru`,
-  nominal harus tertulis eksplisit di teks, data kurang → `butuh` + `tanya`.
+Grounding di system prompt: site cocok persis daftar, bank dari daftar kecuali
+`isBaru`, nominal harus tertulis eksplisit di teks (700rb=700000, 1,5jt=1500000),
+uraian PERTAHANKAN kata kunci asli pengguna (jangan parafrase generik),
+data kurang → `butuh` + `tanya`.
 
 ## Test
 
-`npm test` — termasuk `tests/ai-assistant.test.cjs` (22 test: parser nominal,
-2 contoh perintah asli, fuzzy site/bank, format nomor, baca sheet,
-4 test `validasiHasilLLM` anti-halusinasi).
+`npm test` — termasuk `tests/ai-assistant.test.cjs` (14 test: `validasiHasilLLM`
+anti-halusinasi, penomoran & tulis-balik sheet).

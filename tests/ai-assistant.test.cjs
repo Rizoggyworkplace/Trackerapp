@@ -1,4 +1,5 @@
-/* Unit test Asisten AI Trackers — parser perintah bahasa Indonesia. */
+/* Unit test Asisten AI Trackers (full Gemini) — validasi anti-halusinasi,
+   penomoran & tulis-balik sheet operasional. */
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const A = require('../assets/js/ai-assistant.js');
@@ -13,75 +14,6 @@ const CTX = {
     {nama: 'Baidhowi Muslich', rekening: '1881000011', bank: 'BNI'},
   ],
 };
-
-test('parseNominal: variasi format Indonesia', () => {
-  assert.equal(A.parseNominal('senilai 700rb').value, 700000);
-  assert.equal(A.parseNominal('700 rb').value, 700000);
-  assert.equal(A.parseNominal('700ribu').value, 700000);
-  assert.equal(A.parseNominal('Nilai Rp 3.309.543').value, 3309543);
-  assert.equal(A.parseNominal('Rp 14.500.000').value, 14500000);
-  assert.equal(A.parseNominal('1,5jt').value, 1500000);
-  assert.equal(A.parseNominal('2 juta').value, 2000000);
-  assert.equal(A.parseNominal('2.5jt').value, 2500000);
-  assert.equal(A.parseNominal('tujuh ratus ribu').value, 700000);
-  assert.equal(A.parseNominal('tiga juta lima ratus ribu').value, 3500000);
-  assert.equal(A.parseNominal('tidak ada angka di sini'), null);
-});
-
-test('kataToAngka', () => {
-  assert.equal(A.kataToAngka(['tujuh', 'ratus', 'ribu']), 700000);
-  assert.equal(A.kataToAngka(['seratus', 'ribu']), 100000);
-  assert.equal(A.kataToAngka(['dua', 'puluh', 'tiga', 'juta']), 23000000);
-});
-
-test('detectIntent', () => {
-  assert.equal(A.detectIntent('buatkan PKBON untuk jasa PLN 700rb'), 'buat_pkbon');
-  assert.equal(A.detectIntent('Bos @Om Emir tolong dibantu untuk bayarkan multiguna'), 'buat_pkbon');
-  assert.equal(A.detectIntent('halo apa kabar'), null);
-});
-
-test('contoh asli 1: perintah Oggy', () => {
-  const teks = 'buatkan PKBON dengan nomor terbaru untuk pembayaran pelunasan jasa pln senilai 700rb di kirim ke rekening ini';
-  const p = A.parsePerintahPKBON(teks, CTX);
-  assert.equal(p.intent, 'buat_pkbon');
-  assert.equal(p.nominal, 700000);
-  assert.equal(p.bank.vague, true);
-  assert.ok(p.jenis.includes('pln'), 'jenis mengandung pln: ' + p.jenis);
-  assert.equal(p.uraian, 'Pembayaran pelunasan jasa pln');
-  assert.ok(p.questions.includes('site'), 'site ditanyakan');
-});
-
-test('contoh asli 2: pesan bos (multiguna Sendangreto)', () => {
-  const teks = 'Bos @Om Emir tolong dibantu untuk bayarkan multiguna site sendang Reto : Nilai Rp 3.309.543 MG site Sendangreto Transfer ke pak joko seperti ini bro';
-  const p = A.parsePerintahPKBON(teks, CTX);
-  assert.equal(p.nominal, 3309543);
-  assert.equal(p.sites.length, 1);
-  assert.equal(p.sites[0].name, 'Sendangreto');
-  assert.equal(p.bank.matches.length, 1);
-  assert.equal(p.bank.matches[0].nama, 'Joko');
-  assert.equal(p.jenis, 'multiguna');
-  assert.equal(p.uraian, 'Pembayaran multiguna');
-  assert.deepEqual(p.questions, []);
-});
-
-test('findBank: gelar + noise di ekor', () => {
-  const r = A.findBank('Transfer ke pak joko seperti ini bro', CTX.banks);
-  assert.equal(r.matches.length, 1);
-  assert.equal(r.matches[0].nama, 'Joko');
-  const r2 = A.findBank('dikirim ke rekening ini', CTX.banks);
-  assert.equal(r2.vague, true);
-});
-
-test('findSite: fuzzy spasi & kapital', () => {
-  const r = A.findSite('bayarkan multiguna site sendang Reto', CTX.sites);
-  assert.equal(r[0].name, 'Sendangreto');
-});
-
-test('parseBankBaru', () => {
-  const b = A.parseBankBaru('BCA 1881000011 Joko');
-  assert.deepEqual(b, {bank: 'BCA', rekening: '1881000011', nama: 'Joko'});
-  assert.equal(A.parseBankBaru('cuma nama'), null);
-});
 
 test('formatPkbonNo sama dengan buildPkbonNo', () => {
   assert.equal(A.formatPkbonNo(979, '2026-10-13'), '00979-3/X/2026');
