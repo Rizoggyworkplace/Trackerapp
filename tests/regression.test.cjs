@@ -126,10 +126,13 @@ test('service worker never substitutes old cached JS for a new version and preca
  const scope='https://example.test/trackers/';cached.set(scope+'assets/js/app.js','OLD');
  const cache={add:async req=>{installed.push(req);},addAll:async requests=>{installed=requests;},match:async(req,opts)=>{assert.ok(!opts?.ignoreSearch);return cached.get(req.url||new URL(req,scope).href);},put:async(req,res)=>cached.set(req.url,res)};
  const context={URL,Request,Response,self:{registration:{scope},location:{origin:'https://example.test'},addEventListener:(name,fn)=>listeners[name]=fn},caches:{open:async()=>cache},fetch:async(req,opts)=>{network.push([req.url,opts]);return new Response('NEW');}};
- vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../sw.js'),'utf8'),context);
+ const swSrc=fs.readFileSync(path.join(__dirname,'../sw.js'),'utf8');
+ vm.runInNewContext(swSrc,context);
  let promise;listeners.install({waitUntil:p=>promise=p});await promise;
- assert.ok(installed.some(r=>r.url===scope+'assets/js/app.js?v=20261013.91'&&r.cache==='reload'));
- const req=new Request(scope+'assets/js/app.js?v=20261013.91');listeners.fetch({request:req,respondWith:p=>promise=p});assert.equal(await (await promise).text(),'NEW');assert.equal(network.length,1);
+ // versi ?v= dibaca dinamis dari sw.js — bump versi tidak boleh merusak test ini lagi
+ const vv=(swSrc.match(/\?v=([\d.]+)/)||[])[1];assert.ok(vv,'sw.js harus mencantumkan ?v= versi');
+ assert.ok(installed.some(r=>r.url===scope+'assets/js/app.js?v='+vv&&r.cache==='reload'));
+ const req=new Request(scope+'assets/js/app.js?v='+vv);listeners.fetch({request:req,respondWith:p=>promise=p});assert.equal(await (await promise).text(),'NEW');assert.equal(network.length,1);
  listeners.fetch({request:req,respondWith:p=>promise=p});assert.equal(await (await promise).text(),'NEW');assert.equal(network.length,1);
  let version;listeners.message({data:{type:'GET_VERSION'},ports:[{postMessage:v=>version=v}]});assert.equal(version,'7.7');
 });
