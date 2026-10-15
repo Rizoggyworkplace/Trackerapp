@@ -195,7 +195,10 @@ function syncPreview(){
   const rows=[...state.items];while(rows.length<16)rows.push(null);
   $('#pvRows').innerHTML=rows.map((it,i)=>it?`<tr><td class="center">${i+1}</td><td>${esc(it.uraian)}</td><td class="center">${esc(it.sat)}</td><td class="center">${Number(it.vol)||0}</td><td class="money">${fmt(it.harga)}</td><td class="money">${fmt((Number(it.vol)||0)*(Number(it.harga)||0))}</td><td>${esc(it.keterangan)}</td></tr>`:'<tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('');
   const gt=total();$('#pvGrandTotal').textContent=fmt(gt);$('#grandTotalLabel').textContent='Grand Total: '+fmt(gt);$('#pvTerbilang').textContent=terbilang(gt);$('#pvBankNama').textContent=b.nama||'';$('#pvBankRek').textContent=b.rekening||'';$('#pvBank').textContent=b.bank||'';const tglValue=$('#tanggal').value;const hari=dayNameID(tglValue);$('#pvKotaTanggal').textContent=`${hari?hari+', ':''}${longDateID(tglValue)}`;
-  [1,2,3,4].forEach(n=>{const o=state.documentOfficers?.[n-1]||officerById(settings.approvalIds['a'+n]);$('#pvAppr'+n+'Name').textContent=o?.name||'';$('#pvAppr'+n+'Role').textContent=o?.role||'';setSig($('#pvSig'+n),o?.signature||'')});
+  /* Pejabat selalu diambil LIVE dari master (per id) agar update TTD/nama/jabatan di
+     Pengaturan langsung tampil di preview/cetak; snapshot dokumen hanya fallback bila
+     pejabat sudah dihapus dari master. */
+  [1,2,3,4].forEach(n=>{const snap=state.documentOfficers?.[n-1]||officerById(settings.approvalIds['a'+n]);const o=(snap&&snap.id?officerById(snap.id):null)||snap;$('#pvAppr'+n+'Name').textContent=o?.name||'';$('#pvAppr'+n+'Role').textContent=o?.role||'';setSig($('#pvSig'+n),o?.signature||'')});
   const p2=$('#page2'),p3=$('#page3');setLampiranPrint($('#pvLampiranPengajuan'),state.lampiranPengajuan);setLampiranPrint($('#pvLampiranTransfer'),state.lampiranTransfer);setLampiranPrint($('#pvLampiranBuktiBayar'),state.lampiranBuktiBayar);p2.classList.toggle('hidden-print',!state.lampiranPengajuan&&!state.lampiranTransfer);p3.classList.toggle('hidden-print',!state.lampiranBuktiBayar);renderAttachmentPreviews();
 }
 // Gambar lampiran untuk area cetak: pakai URL resolusi penuh (bukan thumb mungil).
