@@ -119,8 +119,6 @@ function normalizeImportStatus(v){
   if(s==="blocked"||s==="block"||s==="hold")return "Blocked";
   return "In Progress"
 }
-function downloadSiteImportTemplate(){TrackersSheets.export([SITE_HEADERS],'Trackers_Format_Import_Data_Site.xlsx','FORMAT INPUT SITE');}
-
 function existingSiteForImport(row){
   const key=v=>String(v||"").trim().toLowerCase();
   return state.sites.find(s=>key(s.projectId)===key(row.projectId)&&key(s.siteId)===key(row.siteId)&&key(s.workType)===key(row.workType))
@@ -159,19 +157,6 @@ function importSiteRows(rows){
   $("importSiteNotes").innerHTML=notes.length?notes.slice(0,30).map(n=>`<div class="import-note">${esc(n)}</div>`).join(""):`<div class="import-note">Import selesai. ${created} site baru dan ${updated} site diperbarui.</div>`;
   openModal("importSiteResultModal")
 }
-async function handleSiteExcelFile(file){
-  if(!file)return;
-  if(!window.XLSX){toast("Library Excel belum termuat. Pastikan internet aktif lalu coba lagi.");return}
-  try{
-    const data=await file.arrayBuffer();
-    const wb=XLSX.read(data,{type:"array",cellDates:true});
-    const sheetName=wb.SheetNames.includes("FORMAT INPUT SITE")?"FORMAT INPUT SITE":wb.SheetNames[0];
-    const sheet=wb.Sheets[sheetName];
-    const rows=XLSX.utils.sheet_to_json(sheet,{defval:"",raw:true});
-    importSiteRows(rows)
-  }catch(err){console.error(err);toast("Import Excel gagal: "+(err.message||err))}
-}
-
 const THEMES={
   default:{"name":"Default","tone1":"#ffffff","tone2":"#171717","bg":"#f9f9f9","sidebar":"#f9f9f9","workspace":"#ffffff","panel":"#ffffff","card":"#f7f7f8","hover":"#ececec","line":"#dedede","text":"#171717","muted":"#616161","accent":"#171717","danger":"#b42318","mode":"light"},
   midnight:{
@@ -320,7 +305,7 @@ function site(id){return state.sites.find(s=>s.id===id)}
 
 let pkbonModuleReady=false;
 let pkbonModuleLoading=false;
-const PKBON_MODULE_VERSION='20261013.85';
+const PKBON_MODULE_VERSION='20261013.92';
 let pendingPkbonCommands=[];
 let pkbonHistoryCache=null;
 function currentPkbonTheme(){
@@ -1911,7 +1896,6 @@ $("saveBast").onclick=()=>{
   save();closeModal("bastModal");renderDetail();renderDashboard();renderBastProcesses();toast("BAST disimpan")
 };
 
-document.addEventListener("keydown",e=>{if(e.key==="Escape")document.querySelectorAll(".modalbg.open").forEach(m=>closeModal(m.id))});
 function startWorkspace(){
   normalizeAllSiteModules();
   applyTheme();renderAll();route('dashboard');cloudInit().catch(err=>{setLoginInline('Aplikasi belum terhubung. '+friendlyAuthError(err),'error');cloudShowAuth(true);});
