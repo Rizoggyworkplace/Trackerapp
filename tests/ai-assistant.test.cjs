@@ -258,3 +258,31 @@ test('validasiHasilLLM: rekening mirip tapi beda -> tidak dipaksa match', () => 
   assert.equal(m.bankMatch, null); // jangan match ke Joko lama
   assert.ok(m.bankBaru);
 });
+
+test('validasiHasilLLM: tanggal valid dari LLM diteruskan', () => {
+  const ctx = {
+    sites: [{name: 'PELUTAN', projectId: 'x', workspaceSiteId: ''}],
+    banks: [{nama: 'Purnomo', rekening: '1', bank: 'BCA'}],
+  };
+  const hasil = {intent: 'buat_pkbon',
+    draft: {site: 'PELUTAN', nominal: 400000, pekerjaan: 'Admin', uraian: 'x',
+      tanggal: '2026-10-14',
+      bank: {nama: 'Purnomo', rekening: '1', bank: 'BCA'}},
+    butuh: [], tanya: null};
+  const m = A.validasiHasilLLM(hasil, ctx);
+  assert.equal(m.tanggal, '2026-10-14');
+});
+
+test('validasiHasilLLM: tanggal tidak valid -> null (fallback hari ini)', () => {
+  const ctx = {
+    sites: [{name: 'PELUTAN', projectId: 'x', workspaceSiteId: ''}],
+    banks: [{nama: 'Purnomo', rekening: '1', bank: 'BCA'}],
+  };
+  const hasil = {intent: 'buat_pkbon',
+    draft: {site: 'PELUTAN', nominal: 400000, pekerjaan: 'Admin', uraian: 'x',
+      tanggal: 'kemarin',
+      bank: {nama: 'Purnomo', rekening: '1', bank: 'BCA'}},
+    butuh: [], tanya: null};
+  const m = A.validasiHasilLLM(hasil, ctx);
+  assert.equal(m.tanggal, null);
+});

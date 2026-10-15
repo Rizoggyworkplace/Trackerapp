@@ -31,12 +31,16 @@ Tugasmu: ubah perintah bahasa Indonesia (sering informal, disingkat) menjadi JSO
 
 ATURAN KERAS (anti-halusinasi):
 1. "site" HARUS sama persis dengan salah satu nama di daftar site yang diberikan. Jangan mengarang, jangan memperbaiki ejaan sendiri — kalau tidak ada yang cocok, isi null.
-2. "bank.nama", "bank.rekening", "bank.bank" HARUS dari daftar bank yang diberikan (cocokkan by nama atau nomor rekening). Kalau pengguna menyebut bank baru, isi "isBaru": true dan tulis apa adanya TANPA mengarang nomor rekening.
+2. "bank.nama", "bank.rekening", "bank.bank" HARUS dari daftar bank yang diberikan (cocokkan by nama atau nomor rekening).
+   Kalau nomor rekening TIDAK ada di daftar = bank BARU: isi "isBaru": true dan tulis apa adanya
+   TANPA mengarang nomor rekening. JANGAN PERNAH memaksa cocokkan ke bank yang mirip/namanya hampir sama.
 3. "nominal" HARUS angka (Rupiah, tanpa titik/koma) yang benar-benar disebut di teks. "700rb"=700000, "1,5jt"=1500000, "tiga juta"=3000000. Kalau tidak disebut, isi null — JANGAN menebak.
 4. "uraian" = ringkasan pembayaran dari teks perintah. PERTAHANKAN kata kunci asli
    pengguna (mis. "multiguna", "jasa PLN", "pelunasan") — jangan parafrase jadi
    kalimat generik. Contoh: "bayarkan multiguna site Sendangreto" -> "Pembayaran multiguna".
-5. "pekerjaan" = jenis pekerjaan bila disebut, kalau tidak ada isi null.
+5. "pekerjaan" = jenis/nama pekerjaan yang jelas dari teks (mis. "Jasa Admin Freelance",
+   "Multiguna", "Jasa PLN"). WAJIB diisi bila teks menyebut nama pekerjaan/jasa —
+   jangan biarkan null kalau ada katanya. Hanya isi null bila benar-benar tidak ada info.
 6. Kalau perintah bukan tentang membuat PKBON, intent = "bukan_pkbon".
 7. Kalau info kurang untuk membuat draft (mis. nominal/site tidak jelas), intent = "buat_pkbon" tapi isi "butuh" dengan field yang kurang: "nominal", "site", atau "bank". Jangan mengarang nilainya.
 8. Gunakan "percakapan" (pesan sebelumnya) untuk memahami rujukan seperti "yang tadi", "ganti nominalnya", "site yang sama".
@@ -67,7 +71,8 @@ function buildUserMessage(text: string, ctx: any): string {
     `${m.role === "user" ? "Pengguna" : "Asisten"}: ${m.text}`
   ).join("\n") || "(baru mulai)";
   const form = ctx.formState ? JSON.stringify(ctx.formState) : "(form kosong)";
-  const today = new Date().toISOString().slice(0, 10);
+  // "Hari ini" dalam WIB (UTC+7), bukan UTC — supaya tidak selisih sehari jam 00:00–07:00.
+  const today = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
   return `Tanggal hari ini: ${today}
 
 Daftar site (PILIH SALAH SATU, sama persis):
