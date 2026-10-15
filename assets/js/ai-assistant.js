@@ -472,7 +472,7 @@ function initUI(){
     };
   }
 
-  async function panggilLLM(teksAsli, ctx){
+  async function panggilLLM(teksAsli, ctx, sudahRetry){
     try{
       const cc = (typeof cloudClient !== 'undefined') ? cloudClient : null;
       if(!cc) return {error: 'cloudClient null (klien Supabase belum siap / belum login)'};
@@ -480,6 +480,12 @@ function initUI(){
         body: {text: teksAsli, context: bangunKonteksLLM(ctx)},
       });
       if(error){
+        const namaErr = String((error && error.name) || '') + ' ' + String((error && error.message) || '');
+        // Gangguan jaringan sesaat (fetch gagal) -> coba sekali lagi otomatis
+        if(!sudahRetry && /fetch|network|failed to send/i.test(namaErr)){
+          await new Promise(r => setTimeout(r, 2000));
+          return panggilLLM(teksAsli, ctx, true);
+        }
         let detail = (error && error.message) || String(error);
         try{
           const res = error && error.context;
