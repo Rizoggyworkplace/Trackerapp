@@ -43,6 +43,9 @@ ATURAN KERAS (anti-halusinasi):
 6. Kalau perintah bukan tentang membuat PKBON, intent = "bukan_pkbon".
 7. Kalau info kurang untuk membuat draft (mis. nominal/site tidak jelas), intent = "buat_pkbon" tapi isi "butuh" dengan field yang kurang: "nominal", "site", atau "bank". Jangan mengarang nilainya.
 8. Gunakan "percakapan" (pesan sebelumnya) untuk memahami rujukan seperti "yang tadi", "ganti nominalnya", "site yang sama".
+9. Jika pengguna EKSPLISIT meminta mengosongkan/melewati suatu field ("kosongkan saja",
+   "kosongin", "tidak usah diisi", "skip", "nanti saja"), isi field tersebut null dan
+   JANGAN masukkan ke "butuh" — itu perintah langsung, bukan info yang kurang.
 
 KELUARAN: hanya JSON valid, tanpa markdown, tanpa penjelasan. Skema:
 {
@@ -117,6 +120,11 @@ serve(async (req: Request): Promise<Response> => {
         key: Deno.env.get("OPENROUTER_API_KEY") || "",
         model: Deno.env.get("OPENROUTER_MODEL") || "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
         timeoutMs: 35000 },
+      { name: "openrouter2",
+        url: "https://openrouter.ai/api/v1/chat/completions",
+        key: Deno.env.get("OPENROUTER_API_KEY") || "",
+        model: Deno.env.get("OPENROUTER_MODEL_2") || "dots-studio/dots-3-note-preview:free",
+        timeoutMs: 35000 },
       { name: "deepseek",
         url: "https://api.deepseek.com/chat/completions",
         key: Deno.env.get("DEEPSEEK_API_KEY") || "",
@@ -166,7 +174,7 @@ serve(async (req: Request): Promise<Response> => {
           "Content-Type": "application/json",
           "Authorization": "Bearer " + p.key,
         };
-        if(p.name === "openrouter"){
+        if(p.name === "openrouter" || p.name === "openrouter2"){
           headers["HTTP-Referer"] = "https://rizoggyworkplace.github.io/Trackerapp/";
           headers["X-Title"] = "Trackers Workspace PKBON AI";
         }
@@ -179,7 +187,15 @@ serve(async (req: Request): Promise<Response> => {
           break;
         }
         const t = await r.text().catch(() => "");
-        failures.push(p.name + ": HTTP " + r.status);
+        // Cuplikan pesan error asli provider — supaya screenshot error dari user
+        // langsung menunjukkan penyebabnya, bukan cuma kode HTTP.
+        let snippet = "";
+        try {
+          const ej = JSON.parse(t);
+          const em = ej && ej.error ? (ej.error.message || ej.error) : "";
+          snippet = String(em || "").replace(/\s+/g, " ").slice(0, 120);
+        } catch { snippet = t.replace(/\s+/g, " ").slice(0, 120); }
+        failures.push(p.name + ": HTTP " + r.status + (snippet ? " (" + snippet + ")" : ""));
         console.error("ai-parse failover:", p.name, "HTTP", r.status, t.slice(0, 200));
       }catch(e){
         clearTimeout(timer);

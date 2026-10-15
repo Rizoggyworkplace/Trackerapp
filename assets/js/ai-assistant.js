@@ -165,7 +165,9 @@ function validasiHasilLLM(hasil, ctx){
     const norm = s => String(s || '').trim().toLowerCase();
     siteObj = (ctx.sites || []).find(s => norm(s.name) === norm(d.site)) || null;
     if(!siteObj) return null; // site ngarang -> tolak
-  } else return null;
+  }
+  // site null/kosong = pengguna eksplisit minta dikosongkan ("kosongkan saja"):
+  // lolos validasi, form site dibiarkan kosong untuk diisi manual.
   // nominal: harus angka > 0
   const nominal = Number(d.nominal);
   if(!(nominal > 0)) return null;
@@ -193,9 +195,9 @@ function validasiHasilLLM(hasil, ctx){
     if(!isNaN(dt.getTime())) tanggal = String(d.tanggal);
   }
   return {
-    site: siteObj.name,
+    site: siteObj ? siteObj.name : '',
     siteObj,
-    projectId: d.projectId || siteObj.projectId || '',
+    projectId: d.projectId || (siteObj && siteObj.projectId) || '',
     pekerjaan: ambilPekerjaan(d),
     uraian: d.uraian || '',
     nominal,
