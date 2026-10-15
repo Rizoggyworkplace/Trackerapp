@@ -128,8 +128,8 @@ test('service worker never substitutes old cached JS for a new version and preca
  const context={URL,Request,Response,self:{registration:{scope},location:{origin:'https://example.test'},addEventListener:(name,fn)=>listeners[name]=fn},caches:{open:async()=>cache},fetch:async(req,opts)=>{network.push([req.url,opts]);return new Response('NEW');}};
  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../sw.js'),'utf8'),context);
  let promise;listeners.install({waitUntil:p=>promise=p});await promise;
- assert.ok(installed.some(r=>r.url===scope+'assets/js/app.js?v=20261013.83'&&r.cache==='reload'));
- const req=new Request(scope+'assets/js/app.js?v=20261013.83');listeners.fetch({request:req,respondWith:p=>promise=p});assert.equal(await (await promise).text(),'NEW');assert.equal(network.length,1);
+ assert.ok(installed.some(r=>r.url===scope+'assets/js/app.js?v=20261013.84'&&r.cache==='reload'));
+ const req=new Request(scope+'assets/js/app.js?v=20261013.84');listeners.fetch({request:req,respondWith:p=>promise=p});assert.equal(await (await promise).text(),'NEW');assert.equal(network.length,1);
  listeners.fetch({request:req,respondWith:p=>promise=p});assert.equal(await (await promise).text(),'NEW');assert.equal(network.length,1);
  let version;listeners.message({data:{type:'GET_VERSION'},ports:[{postMessage:v=>version=v}]});assert.equal(version,'7.7');
 });

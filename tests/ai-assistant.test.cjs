@@ -206,3 +206,52 @@ test('tulisKeSheet: menolak bila nomor sudah ada (anti duplikat)', async () => {
     /sudah ada di sheet/
   );
 });
+test('validasiHasilLLM: draft valid lolos', () => {
+  const ctx = {
+    sites: [{name: 'Sendangreto', projectId: '25TS06B0042'}],
+    banks: [{nama: 'Joko', rekening: '123', bank: 'BCA'}],
+  };
+  const hasil = {
+    intent: 'buat_pkbon',
+    draft: {
+      site: 'sendangreto', projectId: '25TS06B0042', pekerjaan: 'Multiguna',
+      uraian: 'Pembayaran jasa', nominal: 3309543,
+      bank: {nama: 'Joko', rekening: '123', bank: 'BCA', isBaru: false},
+    },
+    butuh: [], tanya: null,
+  };
+  const m = A.validasiHasilLLM(hasil, ctx);
+  assert.ok(m);
+  assert.equal(m.site, 'Sendangreto');
+  assert.equal(m.nominal, 3309543);
+  assert.ok(m.bankMatch);
+});
+
+test('validasiHasilLLM: tolak site ngarang', () => {
+  const ctx = {sites: [{name: 'Sendangreto', projectId: 'x'}], banks: []};
+  const hasil = {intent: 'buat_pkbon',
+    draft: {site: 'Site Khayalan', nominal: 1000, bank: {nama: 'A', rekening: '1', bank: 'BCA', isBaru: true}},
+    butuh: [], tanya: null};
+  assert.equal(A.validasiHasilLLM(hasil, ctx), null);
+});
+
+test('validasiHasilLLM: tolak nominal ngarang/nol', () => {
+  const ctx = {sites: [{name: 'Sendangreto', projectId: 'x'}],
+    banks: [{nama: 'Joko', rekening: '123', bank: 'BCA'}]};
+  const hasil = {intent: 'buat_pkbon',
+    draft: {site: 'Sendangreto', nominal: 0, bank: {nama: 'Joko', rekening: '123', bank: 'BCA'}},
+    butuh: [], tanya: null};
+  assert.equal(A.validasiHasilLLM(hasil, ctx), null);
+});
+
+test('validasiHasilLLM: bank baru eksplisit diterima', () => {
+  const ctx = {sites: [{name: 'Sendangreto', projectId: 'x'}], banks: []};
+  const hasil = {intent: 'buat_pkbon',
+    draft: {site: 'Sendangreto', nominal: 500000,
+      bank: {nama: 'Budi', rekening: '999', bank: 'BNI', isBaru: true}},
+    butuh: [], tanya: null};
+  const m = A.validasiHasilLLM(hasil, ctx);
+  assert.ok(m);
+  assert.equal(m.bankMatch, null);
+  assert.deepEqual(m.bankBaru, {nama: 'Budi', rekening: '999', bank: 'BNI'});
+});

@@ -307,6 +307,47 @@ const llm = {
   }
 };
 
+/* Validasi hasil LLM terhadap data ASLI (anti-halusinasi).
+   Kembalikan objek siap-buatDraft, atau null bila tidak valid -> fallback aturan. */
+function validasiHasilLLM(hasil, ctx){
+  if(!hasil || hasil.intent !== 'buat_pkbon' || !hasil.draft) return null;
+  const d = hasil.draft;
+  // site: harus cocok persis dengan daftar (case-insensitive)
+  let siteObj = null;
+  if(d.site){
+    const norm = s => String(s || '').trim().toLowerCase();
+    siteObj = (ctx.sites || []).find(s => norm(s.name) === norm(d.site)) || null;
+    if(!siteObj) return null; // site ngarang -> tolak
+  } else return null;
+  // nominal: harus angka > 0
+  const nominal = Number(d.nominal);
+  if(!(nominal > 0)) return null;
+  // bank: cocokkan ke daftar, atau bank baru yang eksplisit
+  let bankMatch = null, bankBaru = null;
+  if(d.bank){
+    const norm = s => String(s || '').trim().toLowerCase();
+    bankMatch = (ctx.banks || []).find(b =>
+      (d.bank.rekening && String(b.rekening) === String(d.bank.rekening)) ||
+      (d.bank.nama && norm(b.nama) === norm(d.bank.nama))) || null;
+    if(!bankMatch && d.bank.isBaru){
+      bankBaru = {nama: d.bank.nama || '', rekening: d.bank.rekening || '', bank: d.bank.bank || ''};
+      if(!bankBaru.nama && !bankBaru.rekening) bankBaru = null;
+    }
+    if(!bankMatch && !bankBaru) return null; // bank ngarang -> tolak
+  } else return null;
+  return {
+    site: siteObj.name,
+    siteObj,
+    projectId: d.projectId || siteObj.projectId || '',
+    pekerjaan: d.pekerjaan || '',
+    uraian: d.uraian || '',
+    nominal,
+    bankMatch,
+    bankBaru,
+  };
+}
+
+
 /* ================= 6. Ekspor ================= */
 const TrackersAI = {
   parseNominal, kataToAngka, detectIntent, findSite, findBank, extractJenis,
@@ -314,7 +355,7 @@ const TrackersAI = {
   getNextSeqFromSheet, getCachedSeq, clearSeqCache, formatPkbonNo, seqDariNomorPkbon,
   bacaKolomC, bacaGridCI, cariBarisTulis, barisKosong, barisSheet, tulisKeSheet,
   BARIS_MINIMAL,
-  SHEET_ID, SHEET_TAB, llm, norm, titleCase,
+  SHEET_ID, SHEET_TAB, llm, norm, titleCase, validasiHasilLLM,
 };
 
 if(typeof window !== 'undefined'){
@@ -381,12 +422,13 @@ function initUI(){
   const chipsBox = panel.querySelector('#tkai-chips');
   let opened = false;
 
-  function addMsg(kind, html){
+  function addMsg(kind, html, skipMemory){
     const d = document.createElement('div');
     d.className = 'tkai-msg ' + kind;
     d.innerHTML = html;
     msgs.appendChild(d);
     msgs.scrollTop = msgs.scrollHeight;
+    if(!skipMemory && (kind === 'user' || kind === 'ai')) catatRiwayat(kind, html);
     return d;
   }
   function setChips(list){
@@ -406,7 +448,7 @@ function initUI(){
       addMsg('ai', 'Halo! Gue bisa bikinin <b>draft PKBON</b> dari perintah biasa. Contoh:<br><br>' +
         '• <i>buatkan PKBON untuk pelunasan jasa PLN 700rb, transfer ke Baidhowi</i><br>' +
         '• <i>bayarkan multiguna site Sendangreto Rp 3.309.543 ke pak Joko</i><br><br>' +
-        'Nomor PKBON gue ambil otomatis dari sheet operasional, dan sheet-nya ikut keisi pas lu simpan. Coba ketik perintah 👇');
+        'Nomor PKBON gue ambil otomatis dari sheet operasional, dan sheet-nya ikut keisi pas lu simpan. Coba ketik perintah 👇', true);
     }
     if(!panel.hidden) panel.querySelector('#tkai-text').focus();
   };
@@ -422,6 +464,13 @@ function initUI(){
 
   /* ---------- state percakapan ---------- */
   let pending = null; // {type, draft, data}
+  const riwayat = []; // memori percakapan untuk LLM: [{role:'user'|'ai', text}]
+  function catatRiwayat(role, text){
+    const bersih = String(text == null ? '' : text).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    if(!bersih) return;
+    riwayat.push({role, text: bersih.slice(0, 500)});
+    while(riwayat.length > 12) riwayat.shift();
+  }
   let busy = false;
 
   function pkbonReady(){
@@ -560,12 +609,65 @@ function initUI(){
     setChips(chipsPertanyaan.map(c => ({label: c.label, text: c.text})));
   }
 
-  async function tanganiParse(p, ctx, teksAsli){
-    // LLM dulu bila dikonfigurasi (fase 2)
+  /* ---------- LLM fase 2: panggil edge function ai-parse ---------- */
+  function bangunKonteksLLM(ctx){
+    const api = ctx.api;
+    let history = [];
     try{
-      const r = await llm.parse(teksAsli, {sites: ctx.sites, banks: ctx.banks});
-      if(r && r.draft){ /* TODO: mapping hasil LLM ke buatDraft */ }
+      history = (api.getHistory() || []).slice(0, 5).map(h => ({
+        pkbonNo: h.pkbonNo || '',
+        uraian: (h.items && h.items[0] && h.items[0].uraian) || '',
+        site: h.site || '',
+        nominal: h.total || 0,
+        bankNama: (h.bank && h.bank.nama) || '',
+      }));
     }catch(_){}
+    let formState = null;
+    try{
+      formState = {
+        site: (document.querySelector('#siteInput') || {}).value || '',
+        pekerjaan: (document.querySelector('#pekerjaan') || {}).value || '',
+        keterangan: (document.querySelector('#keteranganUmum') || {}).value || '',
+      };
+    }catch(_){}
+    return {
+      sites: (ctx.sites || []).map(s => ({name: s.name, projectId: s.projectId || ''})),
+      banks: (ctx.banks || []).map(b => ({nama: b.nama, rekening: b.rekening, bank: b.bank})),
+      history,
+      formState,
+      conversation: riwayat.slice(-6),
+    };
+  }
+
+  async function panggilLLM(teksAsli, ctx){
+    try{
+      const cc = (typeof cloudClient !== 'undefined') ? cloudClient : null;
+      if(!cc) return null;
+      const {data, error} = await cc.functions.invoke('ai-parse', {
+        body: {text: teksAsli, context: bangunKonteksLLM(ctx)},
+      });
+      if(error || !data || !data.ok || !data.result) return null;
+      return data.result; // {intent, draft, butuh, tanya}
+    }catch(_){ return null; }
+  }
+
+
+  async function tanganiParse(p, ctx, teksAsli){
+    // LLM dulu (fase 2) — dengan konteks penuh + validasi anti-halusinasi
+    const hasilLLM = await panggilLLM(teksAsli, ctx);
+    if(hasilLLM && hasilLLM.intent === 'buat_pkbon'){
+      const mapped = validasiHasilLLM(hasilLLM, ctx);
+      if(mapped){
+        await buatDraft(mapped);
+        return;
+      }
+      // LLM ragu / ada field kurang -> tanyakan balik, jangan ngarang
+      if(hasilLLM.tanya){
+        addMsg('ai', escHtml(hasilLLM.tanya));
+        return;
+      }
+    }
+    // Fallback: parser aturan v1
 
     if(p.questions.includes('nominal')){
       pending = {type: 'nominal', p, ctx};

@@ -79,23 +79,28 @@ konfirmasi user ──▶ API.saveCurrent() ──▶ history
   `getSelectedBank`, `nextSequence`, …). Satu-satunya perubahan di file ini.
 - Nomor sheet: `TrackersAI.getNextSeqFromSheet()` / `formatPkbonNo()`.
 
-## Upgrade ke LLM (fase 2)
+## LLM via Edge Function (fase 2) — LIVE 2026-10-15
 
-Parser aturan menangani pola umum. Untuk perintah kompleks, colokkan LLM:
+Parser aturan tetap jadi fallback. Urutan di `tanganiParse`:
+1. `panggilLLM(teks, ctx)` → POST ke edge function `ai-parse` (JWT user).
+2. `validasiHasilLLM(hasil, ctx)` → site/bank/nominal dicocokkan ke data ASLI;
+   kalau ngarang → tolak, fallback ke aturan. Kalau LLM ragu → tampilkan
+   `tanya`, jangan mengarang.
+3. Kalau LLM gagal/offline → parser aturan v1 seperti biasa.
 
-```js
-// di console / modul inisialisasi:
-TrackersAI.llm.endpoint = async (text, ctx) => {
-  const r = await supabase.functions.invoke('ai-parse', {body: {text, ctx}});
-  return r.data; // {draft: {...}} atau null
-};
-```
+Konteks yang dikirim (`bangunKonteksLLM`): daftar site, daftar bank, 5 riwayat
+PKBON terakhir, state form aktif, 6 pesan percakapan terakhir. Memori
+percakapan dicatat di `riwayat` (maks 12, dikirim 6 terakhir).
 
-Pola yang disarankan: Supabase Edge Function `ai-parse` (seperti `invite-user`)
-memegang API key, menerima teks + konteks (sites, banks), mengembalikan JSON
-draft terstruktur. Kunci tidak pernah ke-expose di browser.
+Edge function `supabase/functions/ai-parse/index.ts`:
+- Verifikasi JWT via direct fetch `/auth/v1/user` (pola `invite-user`).
+- Secret `GEMINI_API_KEY` (jangan taruh di client). Override model via `GEMINI_MODEL`
+  (default `gemini-flash-latest`).
+- Grounding: site harus cocok persis daftar, bank dari daftar kecuali `isBaru`,
+  nominal harus tertulis eksplisit di teks, data kurang → `butuh` + `tanya`.
 
 ## Test
 
-`npm test` — termasuk `tests/ai-assistant.test.cjs` (10 test: parser nominal,
-2 contoh perintah asli, fuzzy site/bank, format nomor, baca sheet).
+`npm test` — termasuk `tests/ai-assistant.test.cjs` (22 test: parser nominal,
+2 contoh perintah asli, fuzzy site/bank, format nomor, baca sheet,
+4 test `validasiHasilLLM` anti-halusinasi).
