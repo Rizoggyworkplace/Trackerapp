@@ -442,6 +442,48 @@ function initUI(){
     tampilKonfirmasi(pending.draft);
   }
 
+  /* ---------- Gemini via edge function ai-parse ---------- */
+  function bangunKonteksLLM(ctx){
+    const api = ctx.api;
+    let history = [];
+    try{
+      history = (api.getHistory() || []).slice(0, 5).map(h => ({
+        pkbonNo: h.pkbonNo || '',
+        uraian: (h.items && h.items[0] && h.items[0].uraian) || '',
+        site: h.site || '',
+        nominal: h.total || 0,
+        bankNama: (h.bank && h.bank.nama) || '',
+      }));
+    }catch(_){}
+    let formState = null;
+    try{
+      formState = {
+        site: (document.querySelector('#siteInput') || {}).value || '',
+        pekerjaan: (document.querySelector('#pekerjaan') || {}).value || '',
+        keterangan: (document.querySelector('#keteranganUmum') || {}).value || '',
+      };
+    }catch(_){}
+    return {
+      sites: (ctx.sites || []).map(s => ({name: s.name, projectId: s.projectId || ''})),
+      banks: (ctx.banks || []).map(b => ({nama: b.nama, rekening: b.rekening, bank: b.bank})),
+      history,
+      formState,
+      conversation: riwayat.slice(-6),
+    };
+  }
+
+  async function panggilLLM(teksAsli, ctx){
+    try{
+      const cc = (typeof cloudClient !== 'undefined') ? cloudClient : null;
+      if(!cc) return null;
+      const {data, error} = await cc.functions.invoke('ai-parse', {
+        body: {text: teksAsli, context: bangunKonteksLLM(ctx)},
+      });
+      if(error || !data || !data.ok || !data.result) return null;
+      return data.result; // {intent, draft, butuh, tanya}
+    }catch(_){ return null; }
+  }
+
   async function handleUser(teks){
     addMsg('user', escHtml(teks));
     if(busy) return;

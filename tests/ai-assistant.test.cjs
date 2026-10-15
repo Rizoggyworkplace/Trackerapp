@@ -187,3 +187,15 @@ test('validasiHasilLLM: bank baru eksplisit diterima', () => {
   assert.equal(m.bankMatch, null);
   assert.deepEqual(m.bankBaru, {nama: 'Budi', rekening: '999', bank: 'BNI'});
 });
+
+test('handleUser: semua fungsi yang dipanggil terdefinisi (anti-ReferenceError)', () => {
+  const fs = require('fs');
+  const src = fs.readFileSync(__dirname + '/../assets/js/ai-assistant.js', 'utf-8');
+  const defined = new Set([...src.matchAll(/function\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m => m[1]));
+  // fungsi yang dipakai di alur chat harus ada definisinya
+  for(const fn of ['handleUser', 'panggilLLM', 'bangunKonteksLLM', 'validasiHasilLLM',
+                   'buatDraft', 'tampilKonfirmasi', 'simpanDraft', 'getCtx',
+                   'addMsg', 'setChips', 'catatRiwayat', 'kartuDraft', 'nextSeq']) {
+    assert.ok(defined.has(fn), 'fungsi hilang: ' + fn);
+  }
+});
