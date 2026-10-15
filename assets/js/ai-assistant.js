@@ -475,13 +475,28 @@ function initUI(){
   async function panggilLLM(teksAsli, ctx){
     try{
       const cc = (typeof cloudClient !== 'undefined') ? cloudClient : null;
-      if(!cc) return null;
+      if(!cc) return {error: 'cloudClient null (klien Supabase belum siap / belum login)'};
       const {data, error} = await cc.functions.invoke('ai-parse', {
         body: {text: teksAsli, context: bangunKonteksLLM(ctx)},
       });
-      if(error || !data || !data.ok || !data.result) return null;
+      if(error){
+        let detail = (error && error.message) || String(error);
+        try{
+          const res = error && error.context;
+          if(res && typeof res.text === 'function'){
+            const txt = await res.clone().text();
+            try{ const j = JSON.parse(txt); if(j && j.error) detail = j.error; }catch(_){}
+            if(res.status) detail += ' (HTTP ' + res.status + ')';
+          }
+        }catch(_){}
+        try{ console.error('[ai-parse] invoke error:', error); }catch(_){}
+        return {error: detail};
+      }
+      if(!data || !data.ok || !data.result) return {error: 'respons function tidak ok'};
       return data.result; // {intent, draft, butuh, tanya}
-    }catch(_){ return null; }
+    }catch(e){
+      return {error: 'exception: ' + ((e && e.message) || e)};
+    }
   }
 
   async function handleUser(teks){
@@ -503,8 +518,9 @@ function initUI(){
       const ctx = await getCtx();
       const hasil = await panggilLLM(teks, ctx);
       typing.remove();
-      if(!hasil){
-        addMsg('ai', 'AI-nya lagi nggak bisa dihubungi (server/koneksi). Coba lagi sebentar ya.');
+      if(!hasil || hasil.error){
+        addMsg('ai', 'AI-nya error: <b>' + escHtml((hasil && hasil.error) || 'tidak diketahui') + '</b><br><br>' +
+          'Screenshot pesan ini kirim ke gue ya biar ketahuan penyebabnya. 🙏');
         return;
       }
       if(hasil.intent !== 'buat_pkbon' || !hasil.draft){
