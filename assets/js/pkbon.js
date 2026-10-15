@@ -665,6 +665,21 @@ window.TrackersPkbonAPI={
   showFormTab(){showTab('formTab')},toast,today,
   getSites(){return sites.map(s=>({name:s.name,projectId:s.projectId||'',workspaceSiteId:s.workspaceSiteId||''}))},
   getBanks(){return banks.map(b=>({nama:b.nama,rekening:b.rekening,bank:b.bank}))},
+  /* Tambah bank ke master (dipakai Asisten AI, opsi "simpan ke daftar bank").
+     Anti-duplikat by nomor rekening. Kembalikan {added, reason}. */
+  addBankToMaster(b){
+    const nama = String((b && b.nama) || '').trim();
+    const rekening = String((b && b.rekening) || '').trim();
+    const bank = String((b && b.bank) || '').trim();
+    if(!nama && !rekening) return {added: false, reason: 'Data bank kosong.'};
+    const normRek = s => String(s || '').replace(/\D/g, '');
+    if(rekening && banks.some(x => normRek(x.rekening) === normRek(rekening) && normRek(x.rekening)))
+      return {added: false, reason: 'Rekening ini sudah ada di daftar bank.'};
+    banks.push({nama: nama || '-', rekening, bank});
+    saveJSON('pkbon_banks', banks);
+    try{ fillSelects(); }catch(_){}
+    return {added: true};
+  },
   getSelectedBank(){const b=selectedBank();return b?{nama:b.nama,rekening:b.rekening,bank:b.bank,index:banks.indexOf(b)}:null},
   getHistory(){return history},
   /* Isi form dari objek draft {site,workspaceSiteId,projectId,pekerjaan,keteranganUmum,

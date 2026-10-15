@@ -379,13 +379,29 @@ function initUI(){
   function tampilKonfirmasi(d){
     const m = addMsg('ai', 'Siap, draft PKBON udah gue siapin. Cek dulu ya:' + kartuDraft(d) +
       '<div class="tkai-actions"><button type="button" class="tkai-btn-ok" data-aksi="simpan">✅ Simpan</button>' +
-      '<button type="button" class="tkai-btn-no" data-aksi="batal">Batal</button></div>');
+      '<button type="button" class="tkai-btn-no" data-aksi="batal">Batal</button>' +
+      (d.isBankBaru ? '<button type="button" class="tkai-btn-no" data-aksi="simpan-bank">💾 Simpan ke daftar bank</button>' : '') +
+      '</div>');
     m.querySelector('[data-aksi="simpan"]').onclick = () => simpanDraft();
     m.querySelector('[data-aksi="batal"]').onclick = () => {
       pending = null; setChips([]);
       addMsg('sys', 'Draft dibatalkan. Form tetap terisi — bisa lu edit manual.');
     };
+    const sb = m.querySelector('[data-aksi="simpan-bank"]');
+    if(sb) sb.onclick = () => simpanBankKeMaster();
     setChips([]);
+  }
+
+  function simpanBankKeMaster(){
+    if(!pending || pending.type !== 'confirm' || !pending.draft.isBankBaru) return;
+    const b = pending.draft.bankTampil || {};
+    const r = api.addBankToMaster ? api.addBankToMaster(b) : {added: false, reason: 'Fitur belum tersedia.'};
+    if(r.added){
+      pending.draft.isBankBaru = false;
+      addMsg('sys', '✅ ' + (b.nama || 'Rekening') + ' tersimpan ke daftar bank master.');
+    } else {
+      addMsg('sys', '⚠️ ' + (r.reason || 'Gagal menyimpan ke daftar bank.'));
+    }
   }
 
   async function simpanDraft(){
