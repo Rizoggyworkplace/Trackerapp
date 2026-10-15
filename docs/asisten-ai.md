@@ -13,12 +13,12 @@ tersedia di semua halaman aplikasi.
 
 Asisten tidak pernah menyimpan otomatis — selalu ada konfirmasi dulu.
 
-## Cara kerja (full Gemini, tanpa parser aturan)
+## Cara kerja (full Groq, tanpa parser aturan)
 
 1. User ketik perintah → dikirim ke edge function `ai-parse` (Supabase) bersama konteks:
    daftar site, daftar bank, 5 riwayat PKBON terakhir, state form aktif,
    dan 6 pesan percakapan terakhir.
-2. Gemini mengembalikan JSON draft terstruktur (`intent`, `draft`, `butuh`, `tanya`).
+2. Groq mengembalikan JSON draft terstruktur (`intent`, `draft`, `butuh`, `tanya`).
 3. `validasiHasilLLM` mencocokkan hasil ke data ASLI sebelum jadi draft:
    site harus sama persis dengan daftar, bank dari daftar (atau bank baru yang
    eksplisit), nominal angka > 0 yang benar-benar disebut. Kalau ngarang → ditolak.
@@ -28,7 +28,7 @@ Asisten tidak pernah menyimpan otomatis — selalu ada konfirmasi dulu.
 5. Draft valid → kartu konfirmasi → **Simpan** / Batal.
 
 Kalau AI tidak bisa dihubungi (server/koneksi) → pesan error, user coba lagi.
-API key Gemini dipegang edge function, tidak pernah ke-expose di browser.
+API key Groq dipegang edge function, tidak pernah ke-expose di browser.
 
 ## Nomor PKBON dari Google Sheet
 
@@ -85,8 +85,8 @@ konfirmasi user ──▶ API.saveCurrent() ──▶ history
 ## Edge function `ai-parse`
 
 `supabase/functions/ai-parse/index.ts` — verifikasi JWT via direct fetch
-`/auth/v1/user` (pola `invite-user`), secret `GEMINI_API_KEY`, model default
-`gemini-flash-latest` (override via `GEMINI_MODEL`).
+`/auth/v1/user` (pola `invite-user`), secret `GROQ_API_KEY`, model default
+`openai/gpt-oss-20b` (override via `GROQ_MODEL`).
 
 Grounding di system prompt: site cocok persis daftar, bank dari daftar kecuali
 `isBaru`, nominal harus tertulis eksplisit di teks (700rb=700000, 1,5jt=1500000),

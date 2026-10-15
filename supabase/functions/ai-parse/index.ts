@@ -1,8 +1,8 @@
-// Trackers Workspace — AI parse perintah PKBON via Gemini (fase 2 Asisten AI).
+// Trackers Workspace — AI parse perintah PKBON via Groq (LLM).
 // Deploy as a Supabase Edge Function named "ai-parse".
 // Flow: aplikasi kirim {text, context} -> function verifikasi JWT -> panggil
-// Gemini dengan system prompt grounding -> kembalikan JSON draft terstruktur.
-// GEMINI_API_KEY disimpan sebagai secret Supabase, tidak pernah ke browser.
+// Groq (OpenAI-compatible chat completions, JSON mode) -> kembalikan JSON draft.
+// GROQ_API_KEY disimpan sebagai secret Supabase, tidak pernah ke browser.
 //
 // Anti-halusinasi:
 //  1. LLM hanya boleh memilih site/bank dari daftar yang dikirim (exact match).
@@ -12,7 +12,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-flash-latest";
+const GROQ_MODEL = Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-20b";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -96,8 +96,8 @@ serve(async (req: Request): Promise<Response> => {
   try {
     const url = Deno.env.get("SUPABASE_URL")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const geminiKey = Deno.env.get("GEMINI_API_KEY") || "";
-    if (!geminiKey) return json({ ok: false, error: "GEMINI_API_KEY belum diset di secrets." }, 500);
+    const groqKey = Deno.env.get("GROQ_API_KEY") || "";
+    if(!groqKey) return json({ ok: false, error: "GROQ_API_KEY belum diset di secrets." }, 500);
 
     // Verifikasi JWT pemanggil (pola sama seperti invite-user).
     const jwt = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
@@ -132,47 +132,47 @@ serve(async (req: Request): Promise<Response> => {
         }),
       }
     );
-    // Panggil Gemini dengan 1x retry untuk 429/503 (transient).
-    let geminiRes: Response | null = null;
+    // Panggil Groq (OpenAI-compatible) dengan 1x retry untuk 429/503 (transient).
+    let groqRes: Response | null = null;
     let lastStatus = 0, errText = "";
     for(let attempt = 0; attempt < 2; attempt++){
-      geminiRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-            contents: [{ role: "user", parts: [{ text: buildUserMessage(text, context) }] }],
-            generationConfig: {
-              temperature: 0.1,
-              maxOutputTokens: 1024,
-              responseMimeType: "application/json",
-            },
-          }),
-        }
-      );
-      lastStatus = geminiRes.status;
-      if(geminiRes.ok) break;
-      errText = await geminiRes.text().catch(() => "");
+      groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + groqKey,
+        },
+        body: JSON.stringify({
+          model: GROQ_MODEL,
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            { role: "user", content: buildUserMessage(text, context) },
+          ],
+          temperature: 0.1,
+          max_tokens: 1024,
+          response_format: { type: "json_object" },
+        }),
+      });
+      lastStatus = groqRes.status;
+      if(groqRes.ok) break;
+      errText = await groqRes.text().catch(() => "");
       if(lastStatus !== 429 && lastStatus !== 503) break;
       if(attempt === 0) await new Promise(r => setTimeout(r, 2500));
     }
-    if(!geminiRes || !geminiRes.ok){
-      console.error("Gemini API error:", lastStatus, errText.slice(0, 300));
+    if(!groqRes || !groqRes.ok){
+      console.error("Groq API error:", lastStatus, errText.slice(0, 300));
       const msg = lastStatus === 429 ? "AI kena rate limit, coba lagi 1 menit."
         : lastStatus === 503 ? "AI sedang sibuk (server penuh), coba lagi sebentar."
-        : lastStatus === 400 ? "API key Gemini bermasalah (HTTP 400)."
-        : lastStatus === 403 ? "API key Gemini ditolak (HTTP 403)."
-        : "AI error (Gemini HTTP " + lastStatus + ").";
+        : lastStatus === 401 ? "API key Groq ditolak (HTTP 401)."
+        : "AI error (Groq HTTP " + lastStatus + ").";
       return json({ ok: false, error: msg }, 502);
     }
-    const g = await geminiRes.json();
-    const raw = g?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const g = await groqRes.json();
+    const raw = g?.choices?.[0]?.message?.content || "";
     let parsed: any = null;
-    try {
+    try{
       parsed = JSON.parse(raw);
-    } catch {
+    }catch{
       return json({ ok: false, error: "AI mengembalikan format tak dikenal." }, 502);
     }
     return json({ ok: true, result: parsed });
