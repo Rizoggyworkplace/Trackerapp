@@ -102,19 +102,21 @@ serve(async (req: Request): Promise<Response> => {
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     // Daftar provider AI berurutan: utama -> cadangan 1 -> cadangan 2.
     // Semua OpenAI-compatible (chat completions + JSON mode). Provider tanpa key dilewati otomatis.
+    // Urutan: Groq dulu (limit terbesar), lalu OpenRouter (gratis), DeepSeek terakhir
+    // karena butuh saldo/top-up agar tidak 402.
     const PROVIDERS = [
       { name: "groq",
         url: "https://api.groq.com/openai/v1/chat/completions",
         key: Deno.env.get("GROQ_API_KEY") || "",
         model: Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-20b" },
+      { name: "openrouter",
+        url: "https://openrouter.ai/api/v1/chat/completions",
+        key: Deno.env.get("OPENROUTER_API_KEY") || "",
+        model: Deno.env.get("OPENROUTER_MODEL") || "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free" },
       { name: "deepseek",
         url: "https://api.deepseek.com/chat/completions",
         key: Deno.env.get("DEEPSEEK_API_KEY") || "",
         model: Deno.env.get("DEEPSEEK_MODEL") || "deepseek-chat" },
-      { name: "openrouter",
-        url: "https://openrouter.ai/api/v1/chat/completions",
-        key: Deno.env.get("OPENROUTER_API_KEY") || "",
-        model: Deno.env.get("OPENROUTER_MODEL") || "openai/gpt-oss-120b:free" },
     ].filter(p => p.key);
     if(!PROVIDERS.length)
       return json({ ok: false, error: "API key AI belum diset di secrets Supabase." }, 500);
