@@ -9,17 +9,17 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="apple-mobile-web-app-title" content="Trackers Workspace"/>
-<link rel="manifest" href="manifest.webmanifest?v=20261013.82"/>
-<link rel="icon" type="image/png" sizes="192x192" href="assets/img/icon-192.png?v=20261013.82"/>
-<link rel="apple-touch-icon" href="assets/img/icon-192.png?v=20261013.82"/>
+<link rel="manifest" href="manifest.webmanifest?v=20261013.83"/>
+<link rel="icon" type="image/png" sizes="192x192" href="assets/img/icon-192.png?v=20261013.83"/>
+<link rel="apple-touch-icon" href="assets/img/icon-192.png?v=20261013.83"/>
 <title>Trackers Workspace</title>
-<link rel="stylesheet" href="assets/css/material-icons.css?v=20261013.82"/>
-<link rel="stylesheet" href="assets/css/workspace.css?v=20261013.82"/>
+<link rel="stylesheet" href="assets/css/material-icons.css?v=20261013.83"/>
+<link rel="stylesheet" href="assets/css/workspace.css?v=20261013.83"/>
 </head>
 <body>
 <div class="app">
 <aside class="shell-sidebar" aria-label="Navigasi utama">
-<div class="brand"><img class="trackers-logo-image" src="assets/img/trackers-logo-dark.png?v=20261013.82" alt="Trackers"/></div>
+<div class="brand"><img class="trackers-logo-image" src="assets/img/trackers-logo-dark.png?v=20261013.83" alt="Trackers"/></div>
 <nav class="sidebar-nav">
 <button class="navbtn active" data-route="dashboard" title="Dashboard" aria-label="Dashboard"><span class="mi mi-dashboard" aria-hidden="true"></span></button>
 <button class="navbtn" data-route="sites" title="Projects" aria-label="Projects"><span class="mi mi-folder" aria-hidden="true"></span></button>
@@ -961,7 +961,7 @@
 <!-- Secure Auth Gate -->
 <div class="cloud-auth-gate show" id="cloudAuthGate">
 <div class="cloud-auth-card">
-<img alt="Trackers" class="cloud-auth-logo" id="cloudAuthLogo" src="assets/img/trackers-logo-dark.png?v=20261013.82"/>
+<img alt="Trackers" class="cloud-auth-logo" id="cloudAuthLogo" src="assets/img/trackers-logo-dark.png?v=20261013.83"/>
 <p class="eyebrow">TRACKERS WORKSPACE PRIVATE</p>
 <h2>Masuk ke Trackers Workspace</h2>
 <p>Akses hanya untuk akun yang sudah diizinkan Admin.</p>
@@ -1108,15 +1108,15 @@
 <div class="modalbg" id="tasksModal"><div class="modal"><div class="modalhead"><div><p class="eyebrow">PROGRESS PEKERJAAN</p><h2>Kelola pekerjaan</h2></div><button class="close" data-close="tasksModal" type="button"><span class="mi mi-close" aria-hidden="true"></span></button></div><p class="muted">Progres dihitung dari jumlah pekerjaan selesai. Status project tetap dapat diatur melalui Edit Site.</p><p class="muted">Tanggal pekerjaan adalah jadwal pelaksanaan. Tenggat adalah batas selesai; pengingat muncul mulai H-3.</p><div id="taskEditor" class="task-editor"></div><div class="task-add-row"><label class="field task-title-field"><span>Pekerjaan baru</span><input id="newTaskTitle" placeholder="Contoh: Survey lokasi" aria-label="Pekerjaan baru"/></label><label class="field task-date-field"><span>Tanggal pekerjaan (opsional)</span><input id="newTaskDate" type="date" aria-label="Tanggal pekerjaan baru"/></label><label class="field task-date-field"><span>Tenggat (opsional)</span><input id="newTaskDueDate" type="date"/></label><button class="btn light" id="addTask" type="button"><span class="mi mi-add" aria-hidden="true"></span> Tambah</button></div><div class="formactions"><button class="btn light" data-close="tasksModal" type="button">Batal</button><button class="btn dark" id="saveTasks" type="button">Simpan pekerjaan</button></div></div></div>
 <div class="modalbg" id="backupWorkspaceModal"><div class="modal small"><div class="modalhead"><div><p class="eyebrow">DATA WORKSPACE</p><h2>Backup &amp; Restore</h2></div><button class="close" data-close="backupWorkspaceModal" type="button"><span class="mi mi-close" aria-hidden="true"></span></button></div><p>Backup memuat seluruh data kerja, pembayaran, master, catatan, dan gambar PKBON. Akun dan password tidak dimasukkan.</p><div class="backup-actions"><button class="btn dark" id="downloadWorkspaceBackup" type="button">Download backup lengkap</button><label class="btn light upload-button">Pulihkan dari backup<input id="restoreWorkspaceFile" type="file" accept=".json,application/json" hidden/></label></div><p class="muted">Restore mengganti data kerja di perangkat ini. Simpan backup terbaru sebelum memulihkan.</p></div></div>
 <div id="storageWarning" class="storage-warning" role="alert" hidden></div>
-<script defer src="assets/js/storage-guard.js?v=20261013.82"></script>
-<script defer src="assets/js/icons.js?v=20261013.82"></script>
-<script defer src="assets/js/core.js?v=20261013.82"></script>
-<script defer src="assets/js/operations-core.js?v=20261013.82"></script>
-<script defer src="assets/js/sheets.js?v=20261013.82"></script>
+<script defer src="assets/js/storage-guard.js?v=20261013.83"></script>
+<script defer src="assets/js/icons.js?v=20261013.83"></script>
+<script defer src="assets/js/core.js?v=20261013.83"></script>
+<script defer src="assets/js/operations-core.js?v=20261013.83"></script>
+<script defer src="assets/js/sheets.js?v=20261013.83"></script>
 
-<script defer src="assets/js/config.js?v=20261013.82"></script><script defer src="assets/js/cloud.js?v=20261013.82"></script><script defer src="assets/js/drive.js?v=20261013.82"></script><script defer src="assets/js/app.js?v=20261013.82"></script><script defer src="assets/js/ai-assistant.js?v=20261013.82"></script>
-<script defer src="assets/js/workspace.js?v=20261013.82"></script>
-<script defer src="assets/js/operations.js?v=20261013.82"></script>
-<script defer src="assets/js/boot.js?v=20261013.82"></script>
+<script defer src="assets/js/config.js?v=20261013.83"></script><script defer src="assets/js/cloud.js?v=20261013.83"></script><script defer src="assets/js/drive.js?v=20261013.83"></script><script defer src="assets/js/app.js?v=20261013.83"></script><script defer src="assets/js/ai-assistant.js?v=20261013.83"></script>
+<script defer src="assets/js/workspace.js?v=20261013.83"></script>
+<script defer src="assets/js/operations.js?v=20261013.83"></script>
+<script defer src="assets/js/boot.js?v=20261013.83"></script>
 </body>
 </html>
