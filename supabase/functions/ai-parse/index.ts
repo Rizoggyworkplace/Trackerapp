@@ -33,7 +33,9 @@ ATURAN KERAS (anti-halusinasi):
 1. "site" HARUS sama persis dengan salah satu nama di daftar site yang diberikan. Jangan mengarang, jangan memperbaiki ejaan sendiri — kalau tidak ada yang cocok, isi null.
 2. "bank.nama", "bank.rekening", "bank.bank" HARUS dari daftar bank yang diberikan (cocokkan by nama atau nomor rekening). Kalau pengguna menyebut bank baru, isi "isBaru": true dan tulis apa adanya TANPA mengarang nomor rekening.
 3. "nominal" HARUS angka (Rupiah, tanpa titik/koma) yang benar-benar disebut di teks. "700rb"=700000, "1,5jt"=1500000, "tiga juta"=3000000. Kalau tidak disebut, isi null — JANGAN menebak.
-4. "uraian" = ringkasan pekerjaan/pembayaran dari teks, apa adanya.
+4. "uraian" = ringkasan pembayaran dari teks perintah. PERTAHANKAN kata kunci asli
+   pengguna (mis. "multiguna", "jasa PLN", "pelunasan") — jangan parafrase jadi
+   kalimat generik. Contoh: "bayarkan multiguna site Sendangreto" -> "Pembayaran multiguna".
 5. "pekerjaan" = jenis pekerjaan bila disebut, kalau tidak ada isi null.
 6. Kalau perintah bukan tentang membuat PKBON, intent = "bukan_pkbon".
 7. Kalau info kurang untuk membuat draft (mis. nominal/site tidak jelas), intent = "buat_pkbon" tapi isi "butuh" dengan field yang kurang: "nominal", "site", atau "bank". Jangan mengarang nilainya.
@@ -130,10 +132,40 @@ serve(async (req: Request): Promise<Response> => {
         }),
       }
     );
-    if (!geminiRes.ok) {
-      const errText = await geminiRes.text().catch(() => "");
-      console.error("Gemini API error:", geminiRes.status, errText.slice(0, 300));
-      return json({ ok: false, error: "AI sedang sibuk, coba lagi sebentar." }, 502);
+    // Panggil Gemini dengan 1x retry untuk 429/503 (transient).
+    let geminiRes: Response | null = null;
+    let lastStatus = 0, errText = "";
+    for(let attempt = 0; attempt < 2; attempt++){
+      geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+            contents: [{ role: "user", parts: [{ text: buildUserMessage(text, context) }] }],
+            generationConfig: {
+              temperature: 0.1,
+              maxOutputTokens: 1024,
+              responseMimeType: "application/json",
+            },
+          }),
+        }
+      );
+      lastStatus = geminiRes.status;
+      if(geminiRes.ok) break;
+      errText = await geminiRes.text().catch(() => "");
+      if(lastStatus !== 429 && lastStatus !== 503) break;
+      if(attempt === 0) await new Promise(r => setTimeout(r, 2500));
+    }
+    if(!geminiRes || !geminiRes.ok){
+      console.error("Gemini API error:", lastStatus, errText.slice(0, 300));
+      const msg = lastStatus === 429 ? "AI kena rate limit, coba lagi 1 menit."
+        : lastStatus === 503 ? "AI sedang sibuk (server penuh), coba lagi sebentar."
+        : lastStatus === 400 ? "API key Gemini bermasalah (HTTP 400)."
+        : lastStatus === 403 ? "API key Gemini ditolak (HTTP 403)."
+        : "AI error (Gemini HTTP " + lastStatus + ").";
+      return json({ ok: false, error: msg }, 502);
     }
     const g = await geminiRes.json();
     const raw = g?.candidates?.[0]?.content?.parts?.[0]?.text || "";
