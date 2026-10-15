@@ -457,7 +457,5 @@ async function cloudSignOut(){
 const BAST=["BOQ","PO","BAUT","BAPWP","BAST","GR"];
 // Production build: never auto-delete existing user data on startup.
 // Data removal is available only through Settings → Reset Semua Data.
-function clearBundledDemoDataOnce(){ return; }
-clearBundledDemoDataOnce();
 
 window.addEventListener('online',()=>{if(cloudSession)cloudReconcile();});
